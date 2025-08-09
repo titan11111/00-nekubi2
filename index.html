@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寝首 - 忍者アクションゲーム（強化版）</title>
+    <style>
+        /* 基本設定 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* タイトル画面 */
+        #title-screen {
+            text-align: center;
+            padding: 20px;
+            animation: fadeIn 2s ease-in;
+        }
+
+        #title-screen h1 {
+            font-size: 4rem;
+            color: #ff6b6b;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
+            margin-bottom: 20px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        #title-screen p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        #start-button, #restart-button, #play-again-button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.5rem;
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        #start-button:hover, #restart-button:hover, #play-again-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+        }
+
+        .instructions {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        /* ゲーム画面 */
+        #game-screen {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        #game-ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 100;
+            font-size: 1.2rem;
+            font-weight: bold;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #life-display, #floor-display, #score-display, #chakra-display, #items-display {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 2px solid #ff6b6b;
+        }
+
+        #chakra-display {
+            border-color: #4ecdc4;
+        }
+
+        #items-display {
+            border-color: #feca57;
+        }
+
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #2c3e50, #34495e, #1a252f);
+            display: block;
+        }
+
+        /* スマホ用コントローラー */
+        #mobile-controller {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border: 3px solid #ff6b6b;
+            background: rgba(255, 107, 107, 0.2);
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .ninjutsu-btn {
+            border-color: #4ecdc4;
+            background: rgba(78, 205, 196, 0.2);
+        }
+
+        .control-btn:active {
+            background: rgba(255, 107, 107, 0.5);
+            transform: scale(0.95);
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 107, 107, 0.3);
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        }
+
+        /* ゲームオーバー・クリア画面 */
+        #gameover-screen, #clear-screen {
+            text-align: center;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 20px;
+            border: 3px solid #ff6b6b;
+            animation: fadeIn 1s ease-in;
+        }
+
+        #gameover-screen h2 {
+            color: #ff6b6b;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        #clear-screen h2 {
+            color: #4ecdc4;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        #final-score, #clear-score {
+            font-size: 1.3rem;
+            margin-bottom: 30px;
+        }
+
+        /* アニメーション */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes glow {
+            from { text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7); }
+            to { text-shadow: 3px 3px 6px rgba(255, 107, 107, 0.8), 0 0 25px rgba(255, 107, 107, 0.5); }
+        }
+
+        /* レスポンシブ対応 */
+        @media (max-width: 768px) {
+            #title-screen h1 {
+                font-size: 3rem;
+            }
+            
+            #title-screen p {
+                font-size: 1rem;
+            }
+            
+            #start-button, #restart-button, #play-again-button {
+                padding: 12px 25px;
+                font-size: 1.2rem;
+            }
+            
+            #game-ui {
+                font-size: 1rem;
+            }
+            
+            .control-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #title-screen h1 {
+                font-size: 2.5rem;
+            }
+            
+            #mobile-controller {
+                bottom: 10px;
+            }
+            
+            .control-row {
+                gap: 10px;
+            }
+            
+            .control-btn {
+                width: 45px;
+                height: 45px;
+                font-size: 0.9rem;
+            }
+            
+            #game-ui {
+                font-size: 0.9rem;
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ゲーム画面 -->
+    <div id="game-container">
+        <!-- タイトル画面 -->
+        <div id="title-screen">
+            <h1>寝首</h1>
+            <p>忍者となって城に忍び込み<br>殿の首を討て！</p>
+            <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; margin: 20px 0;">
+                <p style="color: #4ecdc4; font-weight: bold;">【新機能】</p>
+                <p>・忍術システム（分身、煙玉、透明）</p>
+                <p>・ステルス強化（影に隠れる）</p>
+                <p>・アイテムシステム</p>
+            </div>
+            <button id="start-button">ゲーム開始</button>
+            <div class="instructions">
+                <p>操作方法：</p>
+                <p>← → : 移動　↑ : ジャンプ　□ : 攻撃</p>
+                <p>◯ : 忍術　△ : しゃがむ　Shift : 隠れる</p>
+            </div>
+        </div>
+
+        <!-- メインゲーム画面 -->
+        <div id="game-screen" style="display: none;">
+            <!-- ゲーム情報 -->
+            <div id="game-ui">
+                <div id="life-display">❤️ <span id="life-count">3</span></div>
+                <div id="floor-display">階数: <span id="current-floor">1</span>/5</div>
+                <div id="score-display">スコア: <span id="score">0</span></div>
+                <div id="chakra-display">忍術: <span id="chakra-count">3</span></div>
+                <div id="items-display">手裏剣: <span id="shuriken-count">10</span></div>
+            </div>
+
+            <!-- ゲームエリア -->
+            <canvas id="game-canvas"></canvas>
+
+            <!-- スマホ用コントローラー -->
+            <div id="mobile-controller">
+                <div class="control-row">
+                    <button class="control-btn" id="btn-left">←</button>
+                    <button class="control-btn" id="btn-right">→</button>
+                    <button class="control-btn" id="btn-jump">↑</button>
+                    <button class="control-btn" id="btn-crouch">△</button>
+                </div>
+                <div class="control-row">
+                    <button class="control-btn" id="btn-attack">□</button>
+                    <button class="control-btn ninjutsu-btn" id="btn-ninjutsu">◯</button>
+                    <button class="control-btn" id="btn-hide">隠</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ゲームオーバー画面 -->
+        <div id="gameover-screen" style="display: none;">
+            <h2>ゲームオーバー</h2>
+            <p id="final-score">スコア: 0</p>
+            <button id="restart-button">もう一度</button>
+        </div>
+
+        <!-- クリア画面 -->
+        <div id="clear-screen" style="display: none;">
+            <h2>ミッション完了！</h2>
+            <p>殿の首を討った！</p>
+            <p id="clear-score">最終スコア: 0</p>
+            <p id="stealth-bonus">ステルスボーナス: +<span id="bonus-points">0</span></p>
+            <button id="play-again-button">もう一度</button>
+        </div>
+    </div>
+
+    <audio id="bgm" src="audio/nekubi.mp3" loop preload="auto"></audio>
+
+    <script>
+        // ゲーム状態管理
+        const gameState = {
+            screen: 'title',
+            paused: false,
+            score: 0,
+            life: 3,
+            currentFloor: 1,
+            scrollY: 0,
+            gameSpeed: 2,
+            chakra: 3, // 忍術ポイント
+            shurikenCount: 10,
+            stealthMode: false,
+            detectionLevel: 0,
+            stealthBonus: 0
+        };
+
+        // キャンバス設定
+        let canvas;
+        let ctx;
+        let canvasWidth = 400;
+        let canvasHeight = 600;
+        let bgm;
+
+        // プレイヤー（忍者）
+        const player = {
+            x: 200,
+            y: 450, // 1階の床の上に配置
+            width: 48,
+            height: 48,
+            velocityX: 0,
+            velocityY: 0,
+            onGround: false,
+            direction: 1,
+            isJumping: false,
+            isAttacking: false,
+            isCrouching: false,
+            isHiding: false,
+            isInvisible: false,
+            invulnerable: false,
+            invulnerableTime: 0,
+            clones: [],
+            smokeTime: 0,
+            invisibleTime: 0
+        };
+
+        // 敵配列
+        let enemies = [];
+        let projectiles = [];
+        let enemyProjectiles = [];
+        let items = [];
+        let shadows = [];
+        let hiddenDoors = [];
+        let spawnedFloors = new Set();
+
+        // 忍術定義
+        const ninjutsu = {
+            BUNSHIN: { name: '分身の術', cost: 1, cooldown: 300 },
+            SMOKE: { name: '煙玉', cost: 1, cooldown: 180 },
+            INVISIBLE: { name: '透明術', cost: 2, cooldown: 600 }
+        };
+
+        let currentNinjutsu = 'BUNSHIN';
+        let ninjutsuCooldown = 0;
+
+        // フロア定義
+        const floors = [
+            { y: 500, enemies: ['samurai'], items: ['scroll'] },
+            { y: 400, enemies: ['samurai', 'archer'], items: ['poison_shuriken'] },
+            { y: 300, enemies: ['samurai', 'archer', 'spearman'], items: ['smoke_bomb'] },
+            { y: 200, enemies: ['samurai', 'archer', 'spearman', 'shieldman'], items: ['chakra_pill'] },
+            { y: 100, enemies: ['lord'] }
+        ];
+
+        const FLOOR_HEIGHT = 10;
+
+        // 入力管理
+        const keys = {};
+
+        // ゲーム初期化
+        function initGame() {
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+            
+            // 初期キャンバスサイズ設定
+            canvasWidth = 400;
+            canvasHeight = 600;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            
+            window.addEventListener('resize', resizeCanvas);
+            setupEventListeners();
+            generateShadows();
+            generateHiddenDoors();
+            gameLoop();
+            
+            console.log('ゲーム初期化完了');
+        }
+
+        // キャンバスサイズ調整
+        function resizeCanvas() {
+            const container = document.getElementById('game-screen');
+            const rect = container.getBoundingClientRect();
+            
+            // ゲーム画面が非表示の場合はデフォルトサイズを使用
+            if (rect.width === 0 || rect.height === 0) {
+                canvasWidth = 400;
+                canvasHeight = 600;
+            } else {
+                canvasWidth = Math.min(rect.width, 400);
+                canvasHeight = Math.min(rect.height - 160, 600);
+            }
+            
+            if (canvas) {
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
+            }
+        }
+
+        // 影とギミック生成
+        function generateShadows() {
+            shadows = [
+                { x: 50, y: 450, width: 80, height: 40 },
+                { x: 200, y: 350, width: 60, height: 30 },
+                { x: 100, y: 250, width: 100, height: 40 },
+                { x: 250, y: 150, width: 70, height: 35 }
+            ];
+        }
+
+        function generateHiddenDoors() {
+            hiddenDoors = [
+                { x: 300, y: 400, width: 40, height: 60, discovered: false },
+                { x: 150, y: 200, width: 40, height: 60, discovered: false }
+            ];
+        }
+
+        // イベントリスナー設定
+        function setupEventListeners() {
+            document.getElementById('start-button').addEventListener('click', startGame);
+            document.getElementById('restart-button').addEventListener('click', restartGame);
+            document.getElementById('play-again-button').addEventListener('click', restartGame);
+            
+            document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
+            
+            setupMobileControls();
+            window.addEventListener('message', handleExternalController);
+        }
+
+        // スマホコントローラー設定
+        function setupMobileControls() {
+            const buttons = {
+                'btn-left': () => keys.ArrowLeft = true,
+                'btn-right': () => keys.ArrowRight = true,
+                'btn-jump': () => jumpPlayer(),
+                'btn-attack': () => attackPlayer(),
+                'btn-ninjutsu': () => useNinjutsu(),
+                'btn-crouch': () => toggleCrouch(),
+                'btn-hide': () => toggleHide()
+            };
+
+            Object.entries(buttons).forEach(([id, action]) => {
+                const btn = document.getElementById(id);
+                btn.addEventListener('touchstart', action);
+                btn.addEventListener('click', action);
+                
+                if (id === 'btn-left' || id === 'btn-right') {
+                    btn.addEventListener('touchend', () => keys.ArrowLeft = keys.ArrowRight = false);
+                    btn.addEventListener('mouseup', () => keys.ArrowLeft = keys.ArrowRight = false);
+                }
+            });
+        }
+
+        // 外部コントローラー対応
+        function handleExternalController(event) {
+            const data = event.data;
+            if (!data || data.type !== 'control') return;
+            
+            if (data.pressed) {
+                if (data.code === 'ArrowLeft') keys.ArrowLeft = true;
+                else if (data.code === 'ArrowRight') keys.ArrowRight = true;
+                else if (data.code === 'ArrowUp') jumpPlayer();
+                else if (data.code === 'KeyF') attackPlayer();
+            } else {
+                if (data.code === 'ArrowLeft') keys.ArrowLeft = false;
+                else if (data.code === 'ArrowRight') keys.ArrowRight = false;
+            }
+        }
+
+        // キーボード操作
+        function handleKeyDown(e) {
+            keys[e.code] = true;
+            if (e.code === 'Space') jumpPlayer();
+            if (e.code === 'KeyX') attackPlayer();
+            if (e.code === 'KeyZ') useNinjutsu();
+            if (e.code === 'KeyC') toggleCrouch();
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleHide();
+            if (e.code === 'KeyQ') switchNinjutsu();
+        }
+
+        function handleKeyUp(e) {
+            keys[e.code] = false;
+        }
+
+        // ゲーム開始
+        function startGame() {
+            document.getElementById('title-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
+            
+            // ゲーム画面表示後にキャンバスサイズを調整
+            setTimeout(() => {
+                resizeCanvas();
+                
+                gameState.screen = 'playing';
+                gameState.score = 0;
+                gameState.life = 3;
+                gameState.currentFloor = 1;
+                gameState.scrollY = 0;
+                gameState.chakra = 3;
+                gameState.shurikenCount = 10;
+                gameState.stealthBonus = 0;
+
+                if (bgm) {
+                    bgm.currentTime = 0;
+                    bgm.play().catch(e => {
+                        console.log('BGM再生失敗:', e);
+                        // BGMが再生できなくてもゲームは続行
+                    });
+                }
+
+                resetPlayer();
+                enemies = [];
+                projectiles = [];
+                enemyProjectiles = [];
+                items = [];
+                spawnedFloors = new Set();
+                
+                // 1階の敵とアイテムを生成
+                spawnEnemiesForFloor(1);
+                spawnItemsForFloor(1);
+                spawnedFloors.add(1);
+                
+                // デバッグ用：殿が生成されているか確認
+                console.log('初期敵数:', enemies.length);
+                console.log('敵タイプ:', enemies.map(e => e.type));
+                
+                updateUI();
+            }, 100);
+        }
+
+        // ゲーム再開
+        function restartGame() {
+            document.getElementById('gameover-screen').style.display = 'none';
+            document.getElementById('clear-screen').style.display = 'none';
+            document.getElementById('title-screen').style.display = 'block';
+            document.getElementById('game-screen').style.display = 'none';
+
+            gameState.screen = 'title';
+            enemies = [];
+            projectiles = [];
+            enemyProjectiles = [];
+            items = [];
+            spawnedFloors = new Set();
+
+            if (bgm) {
+                bgm.pause();
+                bgm.currentTime = 0;
+            }
+        }
+
+        // プレイヤーリセット
+        function resetPlayer() {
+            player.x = canvasWidth / 2 - player.width / 2;
+            player.y = 450; // 1階の床の上に配置
+            player.velocityX = 0;
+            player.velocityY = 0;
+            player.onGround = false;
+            player.invulnerable = false;
+            player.clones = [];
+            player.smokeTime = 0;
+            player.invisibleTime = 0;
+            player.isInvisible = false;
+            player.isHiding = false;
+            player.isCrouching = false;
+            
+            console.log('プレイヤー位置設定:', player.x, player.y);
+        }
+
+        // 敵とアイテム生成
+        function spawnEnemiesForFloor(floorIndex) {
+            const floor = floors[floorIndex - 1];
+            if (!floor || !floor.enemies) return;
+            
+            floor.enemies.forEach((enemyType, index) => {
+                const enemyHeight = enemyType === 'lord' ? 60 : 45;
+                let health = enemyType === 'lord' ? 5 : 1;
+                let speed = 0.5;
+                
+                if (enemyType === 'samurai') speed = 1;
+                else if (enemyType === 'spearman') speed = 1.2;
+                else if (enemyType === 'shieldman') { speed = 0.3; health = 2; }
+                else if (enemyType === 'archer') speed = 0.5;
+                else if (enemyType === 'lord') speed = 0;
+
+                const enemy = {
+                    type: enemyType,
+                    x: 50 + (index * 100),
+                    y: floor.y - enemyHeight,
+                    width: enemyType === 'lord' ? 80 : 45,
+                    height: enemyHeight,
+                    health: health,
+                    direction: Math.random() > 0.5 ? 1 : -1,
+                    speed: speed,
+                    shootTimer: 0,
+                    alertLevel: 0,
+                    patrolLeft: 50 + (index * 100) - 50,
+                    patrolRight: 50 + (index * 100) + 50,
+                    awake: false
+                };
+                enemies.push(enemy);
+            });
+        }
+
+        function spawnItemsForFloor(floorIndex) {
+            const floor = floors[floorIndex - 1];
+            if (floor.items) {
+                floor.items.forEach((itemType, index) => {
+                    items.push({
+                        type: itemType,
+                        x: 80 + (index * 120),
+                        y: floor.y - 30,
+                        width: 25,
+                        height: 25,
+                        collected: false
+                    });
+                });
+            }
+        }
+
+        // プレイヤー行動
+        function jumpPlayer() {
+            if (gameState.screen !== 'playing') return;
+            if (player.onGround && !player.isCrouching) {
+                player.velocityY = -15;
+                player.onGround = false;
+                player.isJumping = true;
+            }
+        }
+
+        function attackPlayer() {
+            if (gameState.screen !== 'playing' || player.isAttacking || gameState.shurikenCount <= 0) return;
+            
+            player.isAttacking = true;
+            gameState.shurikenCount--;
+
+            projectiles.push({
+                type: 'shuriken',
+                x: player.x + player.width / 2,
+                y: player.y + player.height / 2,
+                width: 20,
+                height: 20,
+                velocityX: player.direction * 8,
+                velocityY: 0
+            });
+
+            setTimeout(() => player.isAttacking = false, 300);
+        }
+
+        function useNinjutsu() {
+            if (gameState.screen !== 'playing' || ninjutsuCooldown > 0) return;
+            
+            const jutsu = ninjutsu[currentNinjutsu];
+            if (gameState.chakra < jutsu.cost) return;
+
+            gameState.chakra -= jutsu.cost;
+            ninjutsuCooldown = jutsu.cooldown;
+
+            switch(currentNinjutsu) {
+                case 'BUNSHIN':
+                    createClone();
+                    break;
+                case 'SMOKE':
+                    useSmokeBomb();
+                    break;
+                case 'INVISIBLE':
+                    becomeInvisible();
+                    break;
+            }
+        }
+
+        function createClone() {
+            player.clones.push({
+                x: player.x - 50,
+                y: player.y,
+                life: 180,
+                direction: -player.direction
+            });
+            player.clones.push({
+                x: player.x + 50,
+                y: player.y,
+                life: 180,
+                direction: player.direction
+            });
+        }
+
+        function useSmokeBomb() {
+            player.smokeTime = 120;
+            // 煙で敵の警戒を下げる
+            enemies.forEach(enemy => {
+                enemy.alertLevel = Math.max(0, enemy.alertLevel - 2);
+            });
+        }
+
+        function becomeInvisible() {
+            player.isInvisible = true;
+            player.invisibleTime = 180;
+        }
+
+        function toggleCrouch() {
+            player.isCrouching = !player.isCrouching;
+            if (player.isCrouching) {
+                player.height = 24;
+                player.y += 24;
+            } else {
+                player.height = 48;
+                player.y -= 24;
+            }
+        }
+
+        function toggleHide() {
+            if (isInShadow()) {
+                player.isHiding = !player.isHiding;
+                gameState.stealthMode = player.isHiding;
+            }
+        }
+
+        function switchNinjutsu() {
+            const jutsuKeys = Object.keys(ninjutsu);
+            const currentIndex = jutsuKeys.indexOf(currentNinjutsu);
+            currentNinjutsu = jutsuKeys[(currentIndex + 1) % jutsuKeys.length];
+        }
+
+        function isInShadow() {
+            return shadows.some(shadow => 
+                player.x < shadow.x + shadow.width &&
+                player.x + player.width > shadow.x &&
+                player.y < shadow.y + shadow.height &&
+                player.y + player.height > shadow.y
+            );
+        }
+
+        // ゲームループ
+        function gameLoop() {
+            if (gameState.screen === 'playing' && !gameState.paused) {
+                update();
+                render();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ゲーム更新
+        function update() {
+            updatePlayer();
+            updateEnemies();
+            updateProjectiles();
+            updateItems();
+            updateCollisions();
+            updateGameProgress();
+            updateNinjutsu();
+        }
+
+        // プレイヤー更新
+        function updatePlayer() {
+            // 無敵時間管理
+            if (player.invulnerable) {
+                player.invulnerableTime--;
+                if (player.invulnerableTime <= 0) {
+                    player.invulnerable = false;
+                }
+            }
+
+            // 忍術効果管理
+            if (player.smokeTime > 0) player.smokeTime--;
+            if (player.invisibleTime > 0) {
+                player.invisibleTime--;
+            } else {
+                player.isInvisible = false;
+            }
+
+            // 分身管理
+            player.clones = player.clones.filter(clone => {
+                clone.life--;
+                return clone.life > 0;
+            });
+            
+            // 左右移動
+            let speed = 5;
+            if (player.isCrouching) speed = 2;
+            if (player.isHiding) speed = 1;
+
+            if (keys.ArrowLeft) {
+                player.velocityX = -speed;
+                player.direction = -1;
+            } else if (keys.ArrowRight) {
+                player.velocityX = speed;
+                player.direction = 1;
+            } else {
+                player.velocityX *= 0.8;
+            }
+            
+            // 重力
+            if (!player.onGround) {
+                player.velocityY += 0.8;
+            }
+            
+            // 位置更新
+            player.x += player.velocityX;
+            player.y += player.velocityY;
+
+            // 画面端制限
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvasWidth) player.x = canvasWidth - player.width;
+
+            // フロアとの衝突判定
+            player.onGround = false;
+            floors.forEach(floor => {
+                if (player.y + player.height >= floor.y &&
+                    player.y + player.height <= floor.y + FLOOR_HEIGHT &&
+                    player.velocityY >= 0) {
+                    player.y = floor.y - player.height;
+                    player.velocityY = 0;
+                    player.onGround = true;
+                    player.isJumping = false;
+                }
+            });
+
+            // 最下層より下に落ちないように制限
+            if (player.y + player.height > floors[0].y + FLOOR_HEIGHT) {
+                player.y = floors[0].y - player.height;
+                player.velocityY = 0;
+                player.onGround = true;
+                player.isJumping = false;
+            }
+
+            updateScroll();
+            updateCurrentFloor();
+        }
+
+        function updateScroll() {
+            const maxScroll = floors[0].y - floors[floors.length - 1].y;
+            gameState.scrollY = Math.min(Math.max(player.y - canvasHeight / 2, 0), maxScroll);
+        }
+
+        function updateCurrentFloor() {
+            let floorNum = 1;
+            for (let i = floors.length - 1; i >= 0; i--) {
+                if (player.y <= floors[i].y - 1) {
+                    floorNum = i + 1;
+                }
+            }
+            const previousFloor = gameState.currentFloor;
+            gameState.currentFloor = floorNum;
+            if (gameState.currentFloor !== previousFloor && !spawnedFloors.has(gameState.currentFloor)) {
+                console.log(`フロア${gameState.currentFloor}の敵を生成`);
+                spawnEnemiesForFloor(gameState.currentFloor);
+                spawnItemsForFloor(gameState.currentFloor);
+                spawnedFloors.add(gameState.currentFloor);
+                
+                // デバッグ用：殿が生成されているか確認
+                if (gameState.currentFloor === 5) {
+                    console.log('5階の敵数:', enemies.length);
+                    console.log('5階の敵タイプ:', enemies.map(e => e.type));
+                }
+            }
+        }
+
+        // 敵更新
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                if (['samurai', 'spearman', 'shieldman'].includes(enemy.type)) {
+                    // 近接系：左右パトロール
+                    enemy.x += enemy.speed * enemy.direction;
+                    if (enemy.x <= enemy.patrolLeft || enemy.x >= enemy.patrolRight) {
+                        enemy.direction *= -1;
+                    }
+                    
+                    // プレイヤー検出
+                    if (!player.isInvisible && !player.isHiding) {
+                        const dist = Math.abs(enemy.x - player.x);
+                        if (dist < 100) {
+                            enemy.alertLevel = Math.min(5, enemy.alertLevel + 0.1);
+                            if (enemy.alertLevel > 3) {
+                                enemy.speed = Math.min(2, enemy.speed * 1.1);
+                            }
+                        }
+                    }
+                } else if (enemy.type === 'archer') {
+                    // 弓兵：定期的に矢を撃つ
+                    enemy.shootTimer++;
+                    if (enemy.shootTimer >= 120) {
+                        enemyProjectiles.push({
+                            x: enemy.x,
+                            y: enemy.y + enemy.height / 2,
+                            width: 30,
+                            height: 4,
+                            velocityX: player.x < enemy.x ? -4 : 4,
+                            velocityY: 0
+                        });
+                        enemy.shootTimer = 0;
+                    }
+                } else if (enemy.type === 'lord') {
+                    // 殿：プレイヤーが近づくと起きる
+                    const dist = Math.abs(enemy.x - player.x) + Math.abs(enemy.y - player.y);
+                    if (dist < 80 && !player.isInvisible) {
+                        enemy.awake = true;
+                    }
+                    
+                    // 殿が起きている場合は攻撃する
+                    if (enemy.awake && enemy.shootTimer <= 0) {
+                        enemyProjectiles.push({
+                            x: enemy.x + enemy.width / 2,
+                            y: enemy.y + enemy.height / 2,
+                            width: 40,
+                            height: 40,
+                            velocityX: (player.x - enemy.x) * 0.05,
+                            velocityY: (player.y - enemy.y) * 0.05
+                        });
+                        enemy.shootTimer = 60;
+                    }
+                    if (enemy.shootTimer > 0) enemy.shootTimer--;
+                }
+                
+                // 警戒レベル減少
+                enemy.alertLevel = Math.max(0, enemy.alertLevel - 0.02);
+            });
+        }
+
+        // 発射物更新
+        function updateProjectiles() {
+            projectiles = projectiles.filter(projectile => {
+                projectile.x += projectile.velocityX;
+                projectile.y += projectile.velocityY;
+                return projectile.x > -20 && projectile.x < canvasWidth + 20;
+            });
+            
+            enemyProjectiles = enemyProjectiles.filter(projectile => {
+                projectile.x += projectile.velocityX;
+                return projectile.x > -30 && projectile.x < canvasWidth + 30;
+            });
+        }
+
+        // アイテム更新
+        function updateItems() {
+            items.forEach(item => {
+                if (!item.collected && isColliding(player, item)) {
+                    item.collected = true;
+                    collectItem(item);
+                }
+            });
+        }
+
+        function collectItem(item) {
+            switch(item.type) {
+                case 'scroll':
+                    gameState.chakra = Math.min(5, gameState.chakra + 1);
+                    gameState.score += 200;
+                    break;
+                case 'poison_shuriken':
+                    gameState.shurikenCount += 5;
+                    gameState.score += 100;
+                    break;
+                case 'smoke_bomb':
+                    useSmokeBomb();
+                    gameState.score += 150;
+                    break;
+                case 'chakra_pill':
+                    gameState.chakra = Math.min(5, gameState.chakra + 2);
+                    gameState.score += 300;
+                    break;
+            }
+        }
+
+        // 衝突判定
+        function updateCollisions() {
+            // プレイヤーと敵の衝突
+            if (!player.invulnerable && !player.isInvisible) {
+                enemies.forEach(enemy => {
+                    if (isColliding(player, enemy)) {
+                        takeDamage();
+                    }
+                });
+            }
+            
+            // プレイヤーと敵の矢の衝突
+            if (!player.invulnerable && !player.isInvisible) {
+                enemyProjectiles.forEach((arrow, index) => {
+                    if (isColliding(player, arrow)) {
+                        enemyProjectiles.splice(index, 1);
+                        takeDamage();
+                    }
+                });
+            }
+            
+            // 手裏剣と敵の衝突
+            projectiles.forEach((shuriken, shurikenIndex) => {
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (isColliding(shuriken, enemy)) {
+                        projectiles.splice(shurikenIndex, 1);
+                        enemy.health--;
+                        gameState.score += 100;
+                        
+                        // 殿の場合は起きさせる
+                        if (enemy.type === 'lord' && !enemy.awake) {
+                            enemy.awake = true;
+                        }
+                        
+                        if (enemy.health <= 0) {
+                            enemies.splice(enemyIndex, 1);
+                            gameState.score += enemy.type === 'lord' ? 1000 : 200;
+                            if (enemy.type !== 'lord') {
+                                gameState.stealthBonus += 50;
+                            }
+                            console.log(`敵を倒した: ${enemy.type}, 残り敵数: ${enemies.length}`);
+                        }
+                    }
+                });
+            });
+
+            // 分身と敵の衝突（気をそらす効果）
+            player.clones.forEach(clone => {
+                enemies.forEach(enemy => {
+                    const dist = Math.abs(enemy.x - clone.x);
+                    if (dist < 80) {
+                        enemy.alertLevel = Math.max(0, enemy.alertLevel - 0.5);
+                    }
+                });
+            });
+        }
+
+        // 衝突判定関数
+        function isColliding(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        // ダメージ処理
+        function takeDamage() {
+            gameState.life--;
+            player.invulnerable = true;
+            player.invulnerableTime = 120;
+            gameState.detectionLevel++;
+            
+            if (gameState.life <= 0) {
+                gameOver();
+            }
+            updateUI();
+        }
+
+        // ゲーム進行更新
+        function updateGameProgress() {
+            // 殿を倒したらクリア（ただし、5階に到達している場合のみ）
+            if (gameState.currentFloor >= 5) {
+                const lordAlive = enemies.some(enemy => enemy.type === 'lord');
+                if (!lordAlive) {
+                    gameClear();
+                }
+            }
+        }
+
+        // 忍術クールダウン更新
+        function updateNinjutsu() {
+            if (ninjutsuCooldown > 0) {
+                ninjutsuCooldown--;
+            }
+            
+            // チャクラ自然回復
+            if (Math.random() < 0.001) {
+                gameState.chakra = Math.min(5, gameState.chakra + 1);
+            }
+        }
+
+        // UI更新
+        function updateUI() {
+            document.getElementById('life-count').textContent = gameState.life;
+            document.getElementById('current-floor').textContent = gameState.currentFloor;
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('chakra-count').textContent = gameState.chakra;
+            document.getElementById('shuriken-count').textContent = gameState.shurikenCount;
+        }
+
+        // ゲームオーバー
+        function gameOver() {
+            gameState.screen = 'gameover';
+            document.getElementById('final-score').textContent = `スコア: ${gameState.score}`;
+            document.getElementById('gameover-screen').style.display = 'block';
+            
+            // BGM停止
+            if (bgm) {
+                bgm.pause();
+            }
+            
+            console.log('ゲームオーバー');
+        }
+
+        // ゲームクリア
+        function gameClear() {
+            gameState.screen = 'clear';
+            const totalScore = gameState.score + gameState.stealthBonus;
+            document.getElementById('clear-score').textContent = `最終スコア: ${totalScore}`;
+            document.getElementById('bonus-points').textContent = gameState.stealthBonus;
+            document.getElementById('clear-screen').style.display = 'block';
+            
+            // BGM停止
+            if (bgm) {
+                bgm.pause();
+            }
+            
+            console.log('ゲームクリア！');
+        }
+
+        // レンダリング
+        function render() {
+            if (!ctx) {
+                console.log('ctxが未定義です');
+                return;
+            }
+            
+            // 画面クリア
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            
+            // 背景描画
+            drawBackground();
+            
+            // 煙エフェクト
+            if (player.smokeTime > 0) {
+                drawSmoke();
+            }
+            
+            // 影描画
+            drawShadows();
+            
+            // 隠し扉描画
+            drawHiddenDoors();
+            
+            // アイテム描画
+            drawItems();
+            
+            // 敵描画
+            enemies.forEach(enemy => drawEnemy(enemy));
+            
+            // プレイヤー描画
+            drawPlayer();
+            
+            // 分身描画
+            player.clones.forEach(clone => drawClone(clone));
+            
+            // 発射物描画
+            projectiles.forEach(projectile => drawShuriken(projectile));
+            enemyProjectiles.forEach(arrow => drawArrow(arrow));
+            
+            // エフェクト描画
+            drawEffects();
+            
+            // UI描画
+            drawGameUI();
+        }
+
+        // 背景描画
+        function drawBackground() {
+            if (!ctx) return;
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+            gradient.addColorStop(0, '#2c3e50');
+            gradient.addColorStop(0.5, '#34495e');
+            gradient.addColorStop(1, '#1a252f');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            
+            // フロア描画
+            ctx.fillStyle = '#555';
+            floors.forEach(floor => {
+                const y = floor.y - gameState.scrollY;
+                ctx.fillRect(0, y, canvasWidth, FLOOR_HEIGHT);
+            });
+
+            // 縦線（柱）
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 2;
+            for (let x = 50; x < canvasWidth; x += 100) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvasHeight);
+                ctx.stroke();
+            }
+            
+            // 月と星
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath();
+            ctx.arc(canvasWidth - 50, 50, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            for (let i = 0; i < 5; i++) {
+                const x = Math.random() * canvasWidth;
+                const y = Math.random() * 150;
+                drawStar(x, y, 2);
+            }
+        }
+
+        function drawStar(x, y, size) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 影描画
+        function drawShadows() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            shadows.forEach(shadow => {
+                ctx.fillRect(shadow.x, shadow.y - gameState.scrollY, shadow.width, shadow.height);
+            });
+        }
+
+        // 隠し扉描画
+        function drawHiddenDoors() {
+            hiddenDoors.forEach(door => {
+                if (door.discovered || isInShadow()) {
+                    ctx.fillStyle = 'rgba(139, 69, 19, 0.8)';
+                    ctx.fillRect(door.x, door.y - gameState.scrollY, door.width, door.height);
+                }
+            });
+        }
+
+        // アイテム描画
+        function drawItems() {
+            items.forEach(item => {
+                if (item.collected) return;
+                
+                ctx.save();
+                ctx.translate(item.x + item.width/2, item.y + item.height/2 - gameState.scrollY);
+                ctx.rotate(Date.now() * 0.005);
+                
+                switch(item.type) {
+                    case 'scroll':
+                        ctx.fillStyle = '#feca57';
+                        ctx.fillRect(-12, -12, 24, 24);
+                        ctx.fillStyle = '#222';
+                        ctx.font = '10px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('巻', 0, 3);
+                        break;
+                    case 'poison_shuriken':
+                        ctx.fillStyle = '#2ecc71';
+                        drawShurikenShape();
+                        break;
+                    case 'smoke_bomb':
+                        ctx.fillStyle = '#95a5a6';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                    case 'chakra_pill':
+                        ctx.fillStyle = '#e74c3c';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '8px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('気', 0, 2);
+                        break;
+                }
+                ctx.restore();
+            });
+        }
+
+        function drawShurikenShape() {
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(3, -3);
+            ctx.lineTo(10, 0);
+            ctx.lineTo(3, 3);
+            ctx.lineTo(0, 10);
+            ctx.lineTo(-3, 3);
+            ctx.lineTo(-10, 0);
+            ctx.lineTo(-3, -3);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // プレイヤー描画
+        function drawPlayer() {
+            ctx.save();
+            
+            // 無敵・透明状態の効果
+            if (player.invulnerable && Math.floor(player.invulnerableTime / 5) % 2) {
+                ctx.globalAlpha = 0.5;
+            }
+            if (player.isInvisible) {
+                ctx.globalAlpha = 0.3;
+            }
+            
+            // 向きに応じて反転と拡大
+            const scale = player.isCrouching ? 1.0 : 1.2;
+            if (player.direction === -1) {
+                ctx.translate(player.x + player.width, player.y - gameState.scrollY);
+                ctx.scale(-scale, scale);
+            } else {
+                ctx.translate(player.x, player.y - gameState.scrollY);
+                ctx.scale(scale, scale);
+            }
+            
+            // 忍者の体
+            ctx.fillStyle = '#1a1a1a';
+            if (player.isCrouching) {
+                ctx.fillRect(12, 25, 16, 10);
+            } else {
+                ctx.fillRect(12, 15, 16, 20);
+            }
+            
+            // 忍者の頭
+            ctx.beginPath();
+            ctx.arc(20, 12, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 目
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(16, 10, 3, 2);
+            ctx.fillRect(21, 10, 3, 2);
+            
+            ctx.restore();
+        }
+
+        // 分身描画
+        function drawClone(clone) {
+            ctx.save();
+            ctx.globalAlpha = 0.6;
+            ctx.translate(clone.x, clone.y - gameState.scrollY);
+            if (clone.direction === -1) ctx.scale(-1, 1);
+            
+            ctx.fillStyle = '#4a4a4a';
+            ctx.fillRect(12, 15, 16, 20);
+            ctx.beginPath();
+            ctx.arc(20, 12, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        // 煙エフェクト描画
+        function drawSmoke() {
+            ctx.save();
+            ctx.globalAlpha = 0.4;
+            ctx.fillStyle = '#95a5a6';
+            
+            for (let i = 0; i < 10; i++) {
+                const angle = (Date.now() * 0.01 + i * 60) % 360;
+                const x = player.x + player.width/2 + Math.cos(angle) * 30;
+                const y = player.y + player.height/2 + Math.sin(angle) * 20 - gameState.scrollY;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // 敵描画
+        function drawEnemy(enemy) {
+            ctx.save();
+            ctx.translate(enemy.x, enemy.y - gameState.scrollY);
+
+            // 警戒レベルに応じた色変化
+            const alertColor = enemy.alertLevel > 3 ? '#ff4444' : '#ffffff';
+            
+            if (enemy.type === 'samurai') {
+                ctx.fillStyle = '#cc3333';
+                ctx.fillRect(15, 20, 15, 18);
+                
+                ctx.fillStyle = '#ffdbab';
+                ctx.beginPath();
+                ctx.arc(22.5, 15, 7, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#333333';
+                ctx.beginPath();
+                ctx.ellipse(22.5, 10, 4, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillRect(21, 5, 3, 8);
+                
+                ctx.strokeStyle = alertColor;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(35, 15);
+                ctx.lineTo(35, 30);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#8b4513';
+                ctx.fillRect(33, 12, 4, 3);
+
+            } else if (enemy.type === 'archer') {
+                ctx.fillStyle = '#3366cc';
+                ctx.fillRect(14, 18, 14, 17);
+                
+                ctx.fillStyle = '#ffdbab';
+                ctx.beginPath();
+                ctx.arc(21, 13, 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = alertColor;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(8, 15, 7, -Math.PI/3, Math.PI/3, false);
+                ctx.stroke();
+                
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(5, 10);
+                ctx.lineTo(5, 20);
+                ctx.stroke();
+                
+            } else if (enemy.type === 'spearman') {
+                ctx.fillStyle = '#228b22';
+                ctx.fillRect(14, 20, 17, 18);
+
+                ctx.fillStyle = '#ffdbab';
+                ctx.beginPath();
+                ctx.arc(22.5, 15, 7, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = alertColor;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(35, 15);
+                ctx.lineTo(45, 5);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#c0c0c0';
+                ctx.beginPath();
+                ctx.moveTo(45, 5);
+                ctx.lineTo(45, 25);
+                ctx.stroke();
+
+            } else if (enemy.type === 'shieldman') {
+                ctx.fillStyle = '#555555';
+                ctx.fillRect(14, 20, 17, 18);
+
+                ctx.fillStyle = '#ffdbab';
+                ctx.beginPath();
+                ctx.arc(22.5, 15, 7, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = alertColor;
+                ctx.beginPath();
+                ctx.arc(35, 28, 8, -Math.PI / 2, Math.PI / 2);
+                ctx.lineTo(35, 20);
+                ctx.closePath();
+                ctx.fill();
+
+            } else if (enemy.type === 'lord') {
+                ctx.fillStyle = '#6b46c1';
+                ctx.beginPath();
+                ctx.ellipse(40, 45, 35, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#7c3aed';
+                ctx.beginPath();
+                ctx.ellipse(40, 35, 25, 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#ffdbab';
+                ctx.beginPath();
+                ctx.arc(25, 25, 12, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#333333';
+                ctx.beginPath();
+                ctx.arc(20, 18, 8, 0, Math.PI);
+                ctx.fill();
+                
+                if (!enemy.awake) {
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '12px Arial';
+                    ctx.fillText('ZZZ', 50, 15);
+                } else {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('起きた！', 10, 10);
+                }
+                
+                if (enemy.health < 5) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.font = '10px Arial';
+                    ctx.fillText(`HP: ${enemy.health}`, 10, 25);
+                }
+            }
+            
+            ctx.restore();
+        }
+
+        // 手裏剣描画
+        function drawShuriken(shuriken) {
+            ctx.save();
+            ctx.translate(shuriken.x + shuriken.width/2, shuriken.y + shuriken.height/2 - gameState.scrollY);
+            ctx.rotate(Date.now() * 0.02);
+            
+            ctx.fillStyle = '#c0c0c0';
+            drawShurikenShape();
+            
+            ctx.fillStyle = '#666666';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        // 矢描画
+        function drawArrow(arrow) {
+            ctx.fillStyle = '#8b4513';
+            ctx.fillRect(arrow.x, arrow.y - gameState.scrollY, 25, 2);
+
+            ctx.fillStyle = '#666666';
+            ctx.beginPath();
+            ctx.moveTo(arrow.x + 25, arrow.y - 2 - gameState.scrollY);
+            ctx.lineTo(arrow.x + 30, arrow.y + 1 - gameState.scrollY);
+            ctx.lineTo(arrow.x + 25, arrow.y + 4 - gameState.scrollY);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // エフェクト描画
+        function drawEffects() {
+            if (player.isAttacking) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fillRect(player.x - 10, player.y - 10 - gameState.scrollY, player.width + 20, player.height + 20);
+            }
+
+            if (player.isJumping) {
+                ctx.strokeStyle = 'rgba(255, 107, 107, 0.5)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(player.x + player.width/2, player.y + player.height + 5 - gameState.scrollY, 15, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            if (player.isHiding && isInShadow()) {
+                ctx.strokeStyle = 'rgba(78, 205, 196, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(player.x - 5, player.y - 5 - gameState.scrollY, player.width + 10, player.height + 10);
+            }
+        }
+
+        // ゲーム内UI描画
+        function drawGameUI() {
+            // 忍術クールダウン表示
+            if (ninjutsuCooldown > 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(10, canvasHeight - 60, 200, 20);
+                
+                ctx.fillStyle = '#4ecdc4';
+                ctx.fillRect(10, canvasHeight - 60, (200 * (ninjutsu[currentNinjutsu].cooldown - ninjutsuCooldown)) / ninjutsu[currentNinjutsu].cooldown, 20);
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px Arial';
+                ctx.fillText(`${ninjutsu[currentNinjutsu].name} クールダウン中...`, 15, canvasHeight - 47);
+            }
+
+            // 現在の忍術表示
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(10, canvasHeight - 30, 150, 20);
+            
+            ctx.fillStyle = '#4ecdc4';
+            ctx.font = '12px Arial';
+            ctx.fillText(`忍術: ${ninjutsu[currentNinjutsu].name}`, 15, canvasHeight - 17);
+        }
+
+        // ページ読み込み時の初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM読み込み完了');
+            
+            bgm = document.getElementById('bgm');
+            if (bgm) {
+                console.log('BGM要素取得成功');
+            } else {
+                console.log('BGM要素が見つかりません');
+            }
+
+            const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            document.getElementById('mobile-controller').style.display = 'block';
+            
+            document.addEventListener('touchstart', function(e) {
+                if (e.target.classList.contains('control-btn') || e.target.classList.contains('ninjutsu-btn')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            document.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            
+            initGame();
+        });
+    </script>
+</body>
+</html>
