@@ -270,7 +270,7 @@
             <div class="instructions">
                 <p>操作方法：</p>
                 <p>← → : 移動　↑ : ジャンプ　□ : 攻撃</p>
-                <p>◯ : 忍術　△ : しゃがむ　Shift : 隠れる</p>
+                <p>◯ : 忍術　△ : しゃがむ　Shift : 隠れる　W : 武器切替</p>
             </div>
         </div>
 
@@ -282,7 +282,7 @@
                 <div id="floor-display">階数: <span id="current-floor">1</span>/5</div>
                 <div id="score-display">スコア: <span id="score">0</span></div>
                 <div id="chakra-display">忍術: <span id="chakra-count">3</span></div>
-                <div id="items-display">手裏剣: <span id="shuriken-count">10</span></div>
+                <div id="items-display">武器: <span id="current-weapon">手裏剣</span> | 手裏剣: <span id="shuriken-count">10</span> | クナイ: <span id="kunai-count">0</span></div>
             </div>
 
             <!-- ゲームエリア -->
@@ -335,6 +335,7 @@
             gameSpeed: 2,
             chakra: 3, // 忍術ポイント
             shurikenCount: 10,
+            kunaiCount: 0,
             stealthMode: false,
             detectionLevel: 0,
             stealthBonus: 0
@@ -387,13 +388,15 @@
 
         let currentNinjutsu = 'BUNSHIN';
         let ninjutsuCooldown = 0;
+        let currentWeapon = 'shuriken';
+        let lastWeaponSwitch = 0;
 
         // フロア定義
         const floors = [
             { y: 500, enemies: ['samurai'], items: ['scroll'] },
-            { y: 400, enemies: ['samurai', 'archer'], items: ['poison_shuriken'] },
-            { y: 300, enemies: ['samurai', 'archer', 'spearman'], items: ['smoke_bomb'] },
-            { y: 200, enemies: ['samurai', 'archer', 'spearman', 'shieldman'], items: ['chakra_pill'] },
+            { y: 400, enemies: ['archer'], items: ['poison_shuriken', 'kunai_pack'] },
+            { y: 300, enemies: ['spearman'], items: ['smoke_bomb', 'kunai_pack'] },
+            { y: 200, enemies: ['shieldman'], items: ['chakra_pill'] },
             { y: 100, enemies: ['lord'] }
         ];
 
@@ -521,6 +524,10 @@
             if (e.code === 'KeyC') toggleCrouch();
             if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleHide();
             if (e.code === 'KeyQ') switchNinjutsu();
+            if (e.code === 'KeyW' && Date.now() - lastWeaponSwitch > 500) {
+                switchWeapon();
+                lastWeaponSwitch = Date.now();
+            }
         }
 
         function handleKeyUp(e) {
@@ -543,8 +550,9 @@
                 gameState.scrollY = 0;
                 gameState.chakra = 3;
                 gameState.shurikenCount = 10;
+                gameState.kunaiCount = 0;
                 gameState.stealthBonus = 0;
-
+                
                 if (bgm) {
                     bgm.currentTime = 0;
                     bgm.play().catch(e => {
@@ -559,11 +567,13 @@
                 enemyProjectiles = [];
                 items = [];
                 spawnedFloors = new Set();
-                
+
                 // 1階の敵とアイテムを生成
                 spawnEnemiesForFloor(1);
                 spawnItemsForFloor(1);
                 spawnedFloors.add(1);
+
+                currentWeapon = 'shuriken';
                 
                 // デバッグ用：殿が生成されているか確認
                 console.log('初期敵数:', enemies.length);
@@ -673,20 +683,35 @@
         }
 
         function attackPlayer() {
-            if (gameState.screen !== 'playing' || player.isAttacking || gameState.shurikenCount <= 0) return;
-            
-            player.isAttacking = true;
-            gameState.shurikenCount--;
+            if (gameState.screen !== 'playing' || player.isAttacking) return;
+            if (currentWeapon === 'shuriken' && gameState.shurikenCount <= 0) return;
+            if (currentWeapon === 'kunai' && gameState.kunaiCount <= 0) return;
 
-            projectiles.push({
-                type: 'shuriken',
-                x: player.x + player.width / 2,
-                y: player.y + player.height / 2,
-                width: 20,
-                height: 20,
-                velocityX: player.direction * 8,
-                velocityY: 0
-            });
+            player.isAttacking = true;
+
+            if (currentWeapon === 'shuriken') {
+                gameState.shurikenCount--;
+                projectiles.push({
+                    type: 'shuriken',
+                    x: player.x + player.width / 2,
+                    y: player.y + player.height / 2,
+                    width: 20,
+                    height: 20,
+                    velocityX: player.direction * 8,
+                    velocityY: 0
+                });
+            } else {
+                gameState.kunaiCount--;
+                projectiles.push({
+                    type: 'kunai',
+                    x: player.x + player.width / 2,
+                    y: player.y + player.height / 2,
+                    width: 25,
+                    height: 5,
+                    velocityX: player.direction * 10,
+                    velocityY: 0
+                });
+            }
 
             setTimeout(() => player.isAttacking = false, 300);
         }
@@ -763,6 +788,14 @@
             const jutsuKeys = Object.keys(ninjutsu);
             const currentIndex = jutsuKeys.indexOf(currentNinjutsu);
             currentNinjutsu = jutsuKeys[(currentIndex + 1) % jutsuKeys.length];
+        }
+
+        function switchWeapon() {
+            const weapons = ['shuriken'];
+            if (gameState.kunaiCount > 0) weapons.push('kunai');
+            const currentIndex = weapons.indexOf(currentWeapon);
+            currentWeapon = weapons[(currentIndex + 1) % weapons.length];
+            updateUI();
         }
 
         function isInShadow() {
@@ -998,11 +1031,16 @@
                     useSmokeBomb();
                     gameState.score += 150;
                     break;
+                case 'kunai_pack':
+                    gameState.kunaiCount += 3;
+                    gameState.score += 100;
+                    break;
                 case 'chakra_pill':
                     gameState.chakra = Math.min(5, gameState.chakra + 2);
                     gameState.score += 300;
                     break;
             }
+            updateUI();
         }
 
         // 衝突判定
@@ -1031,7 +1069,8 @@
                 enemies.forEach((enemy, enemyIndex) => {
                     if (isColliding(shuriken, enemy)) {
                         projectiles.splice(shurikenIndex, 1);
-                        enemy.health--;
+                        const damage = shuriken.type === 'kunai' ? 2 : 1;
+                        enemy.health -= damage;
                         gameState.score += 100;
                         
                         // 殿の場合は起きさせる
@@ -1113,6 +1152,10 @@
             document.getElementById('score').textContent = gameState.score;
             document.getElementById('chakra-count').textContent = gameState.chakra;
             document.getElementById('shuriken-count').textContent = gameState.shurikenCount;
+            const kunaiEl = document.getElementById('kunai-count');
+            if (kunaiEl) kunaiEl.textContent = gameState.kunaiCount;
+            const weaponEl = document.getElementById('current-weapon');
+            if (weaponEl) weaponEl.textContent = currentWeapon === 'shuriken' ? '手裏剣' : 'クナイ';
         }
 
         // ゲームオーバー
@@ -1183,7 +1226,10 @@
             player.clones.forEach(clone => drawClone(clone));
             
             // 発射物描画
-            projectiles.forEach(projectile => drawShuriken(projectile));
+            projectiles.forEach(projectile => {
+                if (projectile.type === 'shuriken') drawShuriken(projectile);
+                else if (projectile.type === 'kunai') drawKunai(projectile);
+            });
             enemyProjectiles.forEach(arrow => drawArrow(arrow));
             
             // エフェクト描画
@@ -1287,6 +1333,12 @@
                         ctx.beginPath();
                         ctx.arc(0, 0, 12, 0, Math.PI * 2);
                         ctx.fill();
+                        break;
+                    case 'kunai_pack':
+                        ctx.fillStyle = '#bdc3c7';
+                        ctx.fillRect(-12, -8, 24, 16);
+                        ctx.fillStyle = '#2c3e50';
+                        ctx.fillRect(-2, -6, 4, 12);
                         break;
                     case 'chakra_pill':
                         ctx.fillStyle = '#e74c3c';
@@ -1542,6 +1594,22 @@
             ctx.arc(0, 0, 2, 0, Math.PI * 2);
             ctx.fill();
             
+            ctx.restore();
+        }
+
+        function drawKunai(kunai) {
+            ctx.save();
+            ctx.translate(kunai.x + kunai.width/2, kunai.y + kunai.height/2 - gameState.scrollY);
+            ctx.rotate(Math.atan2(kunai.velocityY, kunai.velocityX));
+            ctx.fillStyle = '#aaaaaa';
+            ctx.fillRect(-10, -2, 20, 4);
+            ctx.fillStyle = '#555555';
+            ctx.beginPath();
+            ctx.moveTo(10, -4);
+            ctx.lineTo(15, 0);
+            ctx.lineTo(10, 4);
+            ctx.closePath();
+            ctx.fill();
             ctx.restore();
         }
 
