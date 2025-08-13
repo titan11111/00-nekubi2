@@ -361,13 +361,14 @@ function spawnEntitiesForFloor(floorIndex) {
 function spawnEnemiesForFloor(floorIndex) {
     const floor = floors[floorIndex - 1];
     if (!floor) return;
-    
-    floor.enemies.forEach((enemyType, index) => {
+
+    const positions = [];
+    floor.enemies.forEach((enemyType) => {
         const enemyHeight = enemyType === 'lord' ? 60 : 45;
         let health = 1;
         let speed = 0.5;
         let alertness = 1; // 警戒度
-        
+
         // 敵タイプ別パラメータ
         switch(enemyType) {
             case 'samurai':
@@ -394,11 +395,21 @@ function spawnEnemiesForFloor(floorIndex) {
                 break;
         }
 
+        // 配置位置をランダムに決定（重なりを軽減）
+        let x;
+        let attempts = 0;
+        do {
+            x = 50 + Math.random() * (canvasWidth - 100);
+            attempts++;
+        } while (positions.some(p => Math.abs(p - x) < 60) && attempts < 10);
+        positions.push(x);
+
+        const width = enemyType === 'lord' ? 80 : 45;
         const enemy = {
             type: enemyType,
-            x: 50 + (index * 100) + Math.random() * 20,
+            x: x,
             y: floor.y - enemyHeight,
-            width: enemyType === 'lord' ? 80 : 45,
+            width: width,
             height: enemyHeight,
             health: health,
             maxHealth: health,
@@ -408,8 +419,8 @@ function spawnEnemiesForFloor(floorIndex) {
             alertLevel: 0, // 現在の警戒レベル
             alertness: alertness, // 警戒しやすさ
             shootTimer: Math.random() * 60,
-            patrolLeft: 50 + (index * 100) - 50,
-            patrolRight: 50 + (index * 100) + 50,
+            patrolLeft: Math.max(0, x - 50),
+            patrolRight: Math.min(canvasWidth - width, x + 50),
             lastSeen: { x: 0, y: 0 }, // プレイヤーを最後に見た位置
             awake: false, // 殿専用
             stunTime: 0 // 気絶時間
