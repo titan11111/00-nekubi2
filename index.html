@@ -367,7 +367,8 @@
             invulnerableTime: 0,
             clones: [],
             smokeTime: 0,
-            invisibleTime: 0
+            invisibleTime: 0,
+            shadowBlend: false
         };
 
         // 敵配列
@@ -626,6 +627,7 @@
             player.isInvisible = false;
             player.isHiding = false;
             player.isCrouching = false;
+            player.shadowBlend = false;
             
             console.log('プレイヤー位置設定:', player.x, player.y);
         }
@@ -634,31 +636,41 @@
         function spawnEnemiesForFloor(floorIndex) {
             const floor = floors[floorIndex - 1];
             if (!floor || !floor.enemies) return;
-            
-            floor.enemies.forEach((enemyType, index) => {
+
+            const positions = [];
+            floor.enemies.forEach((enemyType) => {
                 const enemyHeight = enemyType === 'lord' ? 60 : 45;
                 let health = enemyType === 'lord' ? 5 : 1;
                 let speed = 0.5;
-                
+
                 if (enemyType === 'samurai') speed = 1;
                 else if (enemyType === 'spearman') speed = 1.2;
                 else if (enemyType === 'shieldman') { speed = 0.3; health = 2; }
                 else if (enemyType === 'archer') speed = 0.5;
                 else if (enemyType === 'lord') speed = 0;
 
+                let x;
+                let attempts = 0;
+                do {
+                    x = 50 + Math.random() * (canvasWidth - 100);
+                    attempts++;
+                } while (positions.some(p => Math.abs(p - x) < 60) && attempts < 10);
+                positions.push(x);
+
+                const width = enemyType === 'lord' ? 80 : 45;
                 const enemy = {
                     type: enemyType,
-                    x: 50 + (index * 100),
+                    x: x,
                     y: floor.y - enemyHeight,
-                    width: enemyType === 'lord' ? 80 : 45,
+                    width: width,
                     height: enemyHeight,
                     health: health,
                     direction: Math.random() > 0.5 ? 1 : -1,
                     speed: speed,
                     shootTimer: 0,
                     alertLevel: 0,
-                    patrolLeft: 50 + (index * 100) - 50,
-                    patrolRight: 50 + (index * 100) + 50,
+                    patrolLeft: Math.max(0, x - 50),
+                    patrolRight: Math.min(canvasWidth - width, x + 50),
                     awake: false
                 };
                 enemies.push(enemy);
@@ -790,6 +802,10 @@
             if (isInShadow()) {
                 player.isHiding = !player.isHiding;
                 gameState.stealthMode = player.isHiding;
+                player.shadowBlend = player.isHiding;
+            } else {
+                player.isHiding = false;
+                player.shadowBlend = false;
             }
         }
 
@@ -1651,7 +1667,7 @@
                 ctx.stroke();
             }
 
-            if (player.isHiding && isInShadow()) {
+            if (player.isHiding && player.shadowBlend) {
                 ctx.strokeStyle = 'rgba(78, 205, 196, 0.8)';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(player.x - 5, player.y - 5 - gameState.scrollY, player.width + 10, player.height + 10);
