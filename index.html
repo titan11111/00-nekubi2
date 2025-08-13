@@ -477,25 +477,34 @@
 
         // スマホコントローラー設定
         function setupMobileControls() {
-            const buttons = {
-                'btn-left': () => keys.ArrowLeft = true,
-                'btn-right': () => keys.ArrowRight = true,
-                'btn-jump': () => jumpPlayer(),
-                'btn-attack': () => attackPlayer(),
-                'btn-ninjutsu': () => useNinjutsu(),
-                'btn-crouch': () => toggleCrouch(),
-                'btn-hide': () => toggleHide()
+            const buttonMappings = {
+                'btn-left': { press: () => keys.ArrowLeft = true, release: () => keys.ArrowLeft = false },
+                'btn-right': { press: () => keys.ArrowRight = true, release: () => keys.ArrowRight = false },
+                'btn-jump': { press: () => jumpPlayer() },
+                'btn-attack': { press: () => attackPlayer() },
+                'btn-ninjutsu': { press: () => useNinjutsu() },
+                'btn-crouch': { press: () => toggleCrouch() },
+                'btn-hide': { press: () => toggleHide() }
             };
 
-            Object.entries(buttons).forEach(([id, action]) => {
+            Object.entries(buttonMappings).forEach(([id, actions]) => {
                 const btn = document.getElementById(id);
-                btn.addEventListener('touchstart', action);
-                btn.addEventListener('click', action);
-                
-                if (id === 'btn-left' || id === 'btn-right') {
-                    btn.addEventListener('touchend', () => keys.ArrowLeft = keys.ArrowRight = false);
-                    btn.addEventListener('mouseup', () => keys.ArrowLeft = keys.ArrowRight = false);
+                if (!btn) return;
+
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    actions.press();
+                });
+
+                if (actions.release) {
+                    const release = () => actions.release();
+                    btn.addEventListener('pointerup', release);
+                    btn.addEventListener('pointerleave', release);
+                    btn.addEventListener('pointercancel', release);
                 }
+
+                // 長押しでのコンテキストメニューを無効化
+                btn.addEventListener('contextmenu', (e) => e.preventDefault());
             });
         }
 
@@ -1692,9 +1701,11 @@
                     e.preventDefault();
                 }
             }, { passive: false });
-            
+
             document.addEventListener('touchmove', function(e) {
-                e.preventDefault();
+                if (e.target.closest('#mobile-controller')) {
+                    e.preventDefault();
+                }
             }, { passive: false });
             
             initGame();
