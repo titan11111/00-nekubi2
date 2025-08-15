@@ -28,6 +28,8 @@ const player = {
     y: 300,
     width: 48,
     height: 48,
+    spawnX: 200,
+    spawnY: 300,
     velocityX: 0,
     velocityY: 0,
     onGround: false,
@@ -116,6 +118,8 @@ function resizeCanvas() {
     // プレイヤー位置調整
     player.x = canvasWidth / 2 - player.width / 2;
     player.y = canvasHeight / 2 - player.height / 2;
+    player.spawnX = player.x;
+    player.spawnY = player.y;
 }
 
 // 環境生成（影、隠し扉、罠）
@@ -765,13 +769,19 @@ function checkFloorCollisions() {
         }
     });
 
-    // 最下層より下に落ちないように制限
+    // 最下層より下に落ちたらスタート位置に戻す
     if (player.y + player.height > floors[0].y + FLOOR_HEIGHT) {
-        player.y = floors[0].y - player.height;
-        player.velocityY = 0;
-        player.onGround = true;
-        player.isJumping = false;
+        resetPlayerPosition();
     }
+}
+
+function resetPlayerPosition() {
+    player.x = player.spawnX;
+    player.y = player.spawnY;
+    player.velocityX = 0;
+    player.velocityY = 0;
+    player.onGround = false;
+    player.isJumping = false;
 }
 
 function updateScroll() {
