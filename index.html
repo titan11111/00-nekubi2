@@ -73,7 +73,9 @@ let timer = 120, score = 0, hi = 20000, lives = 3, tcount = 0;
 
 document.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()] = true; if(e.key===" "){ e.preventDefault(); }});
 document.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
-document.getElementById('btn').onclick = start;
+const startBtn = document.getElementById('btn');
+// pointerdownで素早く反応させる
+startBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); start(); });
 
 // スクロール防止
 ['touchstart','touchmove','touchend','gesturestart'].forEach(ev=>{
