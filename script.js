@@ -1,1944 +1,1525 @@
-// ゲーム状態管理
-const gameState = {
-    screen: 'title', // 'title', 'playing', 'gameover', 'clear'
-    paused: false,
-    score: 0,
-    life: 3,
-    currentFloor: 1,
-    scrollY: 0,
-    gameSpeed: 2,
-    chakra: 3, // 忍術ポイント
-    shurikenCount: 10,
-    stealthMode: false,
-    detectionLevel: 0,
-    stealthBonus: 0,
-    perfectStealth: true // 一度も発見されていないか
-};
+// script.js - 本格RPGゲームのメインスクリプト
 
-// キャンバス設定
-let canvas;
-let ctx;
-let canvasWidth = 400;
-let canvasHeight = 600;
-let bgm;
-
-// プレイヤー（忍者）
-const player = {
-    x: 200,
-    y: 300,
-    width: 48,
-    height: 48,
-    spawnX: 200,
-    spawnY: 300,
-    velocityX: 0,
-    velocityY: 0,
-    onGround: false,
-    direction: 1, // 1: 右, -1: 左
-    isJumping: false,
-    isAttacking: false,
-    isCrouching: false,
-    isHiding: false,
-    isInvisible: false,
-    invulnerable: false,
-    invulnerableTime: 0,
-    clones: [], // 分身
-    smokeTime: 0, // 煙玉効果時間
-    invisibleTime: 0, // 透明術効果時間
-    shadowBlend: false // 影に溶け込んでいるか
-};
-
-// 敵配列
-let enemies = [];
-let projectiles = []; // プレイヤーの手裏剣
-let enemyProjectiles = []; // 敵の矢
-let items = []; // アイテム
-let shadows = []; // 影エリア
-let hiddenDoors = []; // 隠し扉
-let traps = []; // 罠
-let spawnedFloors = new Set();
-
-// 忍術定義
-const ninjutsu = {
-    BUNSHIN: { name: '分身の術', cost: 1, cooldown: 300 },
-    SMOKE: { name: '煙玉', cost: 1, cooldown: 180 },
-    INVISIBLE: { name: '透明術', cost: 2, cooldown: 600 }
-};
-
-let currentNinjutsu = 'BUNSHIN';
-let ninjutsuCooldown = 0;
-let lastNinjutsuSwitch = 0;
-
-// フロア定義（各階の敵とアイテム）
-const floors = [
-    { y: 500, enemies: ['samurai'], items: ['scroll'], shadows: 2 },
-    { y: 400, enemies: ['samurai', 'archer'], items: ['poison_shuriken'], shadows: 2 },
-    { y: 300, enemies: ['samurai', 'archer', 'spearman'], items: ['smoke_bomb'], shadows: 3 },
-    { y: 200, enemies: ['samurai', 'archer', 'spearman', 'shieldman'], items: ['chakra_pill'], shadows: 3 },
-    { y: 100, enemies: ['lord'], items: [], shadows: 1 } // ボスフロア
-];
-
-const FLOOR_HEIGHT = 10;
-
-// 入力管理
-const keys = {};
-
-// 音効果用AudioContext
-let audioContext;
-
-// ゲーム初期化
-function initGame() {
-    canvas = document.getElementById('game-canvas');
-    ctx = canvas.getContext('2d');
-    
-    // AudioContext初期化
-    try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (e) {
-        console.log('AudioContext not supported');
-    }
-    
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    setupEventListeners();
-    generateEnvironment();
-    gameLoop();
-}
-
-// キャンバスサイズ調整
-function resizeCanvas() {
-    const container = document.getElementById('game-screen');
-    const rect = container.getBoundingClientRect();
-    
-    canvasWidth = Math.min(rect.width, 400);
-    canvasHeight = Math.min(rect.height - 160, 600); // UI分を除く
-    
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
-
-    // プレイヤー位置調整
-    player.x = canvasWidth / 2 - player.width / 2;
-    player.y = canvasHeight / 2 - player.height / 2;
-    player.spawnX = player.x;
-    player.spawnY = player.y;
-}
-
-// 環境生成（影、隠し扉、罠）
-function generateEnvironment() {
-    shadows = [];
-    hiddenDoors = [];
-    traps = [];
-    
-    floors.forEach((floor, index) => {
-        // 影エリア生成
-        for (let i = 0; i < floor.shadows; i++) {
-            shadows.push({
-                x: 50 + (i * 120) + Math.random() * 50,
-                y: floor.y - 50,
-                width: 60 + Math.random() * 40,
-                height: 40,
-                floor: index + 1
-            });
-        }
-        
-        // 隠し扉生成（上位階のみ）
-        if (index >= 1) {
-            hiddenDoors.push({
-                x: 200 + Math.random() * 100,
-                y: floor.y - 60,
-                width: 40,
-                height: 60,
-                discovered: false,
-                floor: index + 1
-            });
-        }
-        
-        // 罠生成（上位階のみ）
-        if (index >= 2) {
-            traps.push({
-                x: 100 + Math.random() * 200,
-                y: floor.y - 20,
-                width: 30,
-                height: 20,
-                triggered: false,
-                floor: index + 1
-            });
-        }
-    });
-}
-
-// イベントリスナー設定
-function setupEventListeners() {
-    // 画面切り替えボタン
-    document.getElementById('start-button').addEventListener('click', startGame);
-    document.getElementById('restart-button').addEventListener('click', restartGame);
-    document.getElementById('play-again-button').addEventListener('click', restartGame);
-    
-    // キーボード操作
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
-    
-    // スマホコントローラー
-    setupMobileControls();
-    
-    // 外部コントローラー対応
-    window.addEventListener('message', handleExternalController);
-}
-
-// スマホコントローラー設定
-function setupMobileControls() {
-    const buttonMappings = {
-        'btn-left': { press: () => keys.ArrowLeft = true, release: () => keys.ArrowLeft = false },
-        'btn-right': { press: () => keys.ArrowRight = true, release: () => keys.ArrowRight = false },
-        'btn-jump': { press: () => jumpPlayer(), release: null },
-        'btn-attack': { press: () => attackPlayer(), release: null },
-        'btn-ninjutsu': { press: () => useNinjutsu(), release: null },
-        'btn-crouch': { press: () => toggleCrouch(), release: null },
-        'btn-hide': { press: () => toggleHide(), release: null }
-    };
-
-    Object.entries(buttonMappings).forEach(([id, actions]) => {
-        const btn = document.getElementById(id);
-        if (!btn) return;
-        
-        // タッチイベント
-        btn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            actions.press();
-        });
-        
-        if (actions.release) {
-            btn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                actions.release();
-            });
-            
-            btn.addEventListener('touchcancel', (e) => {
-                e.preventDefault();
-                actions.release();
-            });
-        }
-        
-        // マウスイベント（デスクトップ）
-        btn.addEventListener('mousedown', actions.press);
-        if (actions.release) {
-            btn.addEventListener('mouseup', actions.release);
-            btn.addEventListener('mouseleave', actions.release);
-        }
-    });
-}
-
-// 外部コントローラー対応
-function handleExternalController(event) {
-    const data = event.data;
-    if (!data || data.type !== 'control') return;
-    
-    if (data.pressed) {
-        if (data.code === 'ArrowLeft') keys.ArrowLeft = true;
-        else if (data.code === 'ArrowRight') keys.ArrowRight = true;
-        else if (data.code === 'ArrowUp') jumpPlayer();
-        else if (data.code === 'KeyF') attackPlayer();
-    } else {
-        if (data.code === 'ArrowLeft') keys.ArrowLeft = false;
-        else if (data.code === 'ArrowRight') keys.ArrowRight = false;
-    }
-}
-
-// キーボード操作
-function handleKeyDown(e) {
-    keys[e.code] = true;
-    
-    if (e.code === 'Space') {
-        e.preventDefault();
-        jumpPlayer();
-    }
-    if (e.code === 'KeyX') attackPlayer();
-    if (e.code === 'KeyZ') useNinjutsu();
-    if (e.code === 'KeyC') toggleCrouch();
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleHide();
-    if (e.code === 'KeyQ' && Date.now() - lastNinjutsuSwitch > 500) {
-        switchNinjutsu();
-        lastNinjutsuSwitch = Date.now();
-    }
-}
-
-function handleKeyUp(e) {
-    keys[e.code] = false;
-}
-
-// ゲーム開始
-function startGame() {
-    document.getElementById('title-screen').style.display = 'none';
-    document.getElementById('game-screen').style.display = 'block';
-    resizeCanvas();
-
-    // ゲーム状態リセット
-    gameState.screen = 'playing';
-    gameState.score = 0;
-    gameState.life = 3;
-    gameState.currentFloor = 1;
-    gameState.scrollY = 0;
-    gameState.chakra = 3;
-    gameState.shurikenCount = 10;
-    gameState.stealthBonus = 0;
-    gameState.perfectStealth = true;
-    gameState.detectionLevel = 0;
-
-    // BGM再生
-    if (bgm) {
-        bgm.currentTime = 0;
-        bgm.play().catch(e => console.log('BGM再生失敗:', e));
-    }
-
-    // プレイヤーと敵リセット
-    resetPlayer();
-    enemies = [];
-    projectiles = [];
-    enemyProjectiles = [];
-    items = [];
-    spawnedFloors = new Set();
-    
-    // 初期フロア生成
-    spawnEntitiesForFloor(1);
-    spawnedFloors.add(1);
-    updateUI();
-}
-
-// ゲーム再開
-function restartGame() {
-    // 画面切り替え
-    document.getElementById('gameover-screen').style.display = 'none';
-    document.getElementById('clear-screen').style.display = 'none';
-    document.getElementById('title-screen').style.display = 'block';
-    document.getElementById('game-screen').style.display = 'none';
-
-    gameState.screen = 'title';
-    
-    // データリセット
-    enemies = [];
-    projectiles = [];
-    enemyProjectiles = [];
-    items = [];
-    spawnedFloors = new Set();
-
-    // BGM停止
-    if (bgm) {
-        bgm.pause();
-        bgm.currentTime = 0;
-    }
-}
-
-// プレイヤーリセット
-function resetPlayer() {
-    player.x = canvasWidth / 2 - player.width / 2;
-    player.y = canvasHeight / 2 - player.height / 2;
-    player.velocityX = 0;
-    player.velocityY = 0;
-    player.onGround = false;
-    player.invulnerable = false;
-    player.invulnerableTime = 0;
-    player.clones = [];
-    player.smokeTime = 0;
-    player.invisibleTime = 0;
-    player.isInvisible = false;
-    player.isHiding = false;
-    player.isCrouching = false;
-    player.shadowBlend = false;
-    player.height = 48; // しゃがみ状態解除
-}
-
-// フロアのエンティティ生成
-function spawnEntitiesForFloor(floorIndex) {
-    spawnEnemiesForFloor(floorIndex);
-    spawnItemsForFloor(floorIndex);
-}
-
-function spawnEnemiesForFloor(floorIndex) {
-    const floor = floors[floorIndex - 1];
-    if (!floor) return;
-    
-    floor.enemies.forEach((enemyType, index) => {
-        const enemyHeight = enemyType === 'lord' ? 60 : 45;
-        let health = 1;
-        let speed = 0.5;
-        let alertness = 1; // 警戒度
-        
-        // 敵タイプ別パラメータ
-        switch(enemyType) {
-            case 'samurai':
-                speed = 1;
-                alertness = 1.2;
-                break;
-            case 'spearman':
-                speed = 1.2;
-                alertness = 1.1;
-                break;
-            case 'shieldman':
-                speed = 0.3;
-                health = 2;
-                alertness = 0.8;
-                break;
-            case 'archer':
-                speed = 0.5;
-                alertness = 1.5; // 弓兵は警戒心が高い
-                break;
-            case 'lord':
-                speed = 0;
-                health = 5;
-                alertness = 0.5; // 殿は寝ているので警戒心が低い
-                break;
-        }
-
-        const enemy = {
-            type: enemyType,
-            x: 50 + (index * 100) + Math.random() * 20,
-            y: floor.y - enemyHeight,
-            width: enemyType === 'lord' ? 80 : 45,
-            height: enemyHeight,
-            health: health,
-            maxHealth: health,
-            direction: Math.random() > 0.5 ? 1 : -1,
-            speed: speed,
-            baseSpeed: speed,
-            alertLevel: 0, // 現在の警戒レベル
-            alertness: alertness, // 警戒しやすさ
-            shootTimer: Math.random() * 60,
-            patrolLeft: 50 + (index * 100) - 50,
-            patrolRight: 50 + (index * 100) + 50,
-            lastSeen: { x: 0, y: 0 }, // プレイヤーを最後に見た位置
-            awake: false, // 殿専用
-            stunTime: 0 // 気絶時間
+class AdvancedRPGGame {
+    constructor() {
+        // ゲーム設定
+        this.settings = {
+            volume: 50,
+            textSpeed: 'normal',
+            autoSave: true
         };
-        enemies.push(enemy);
-    });
-}
 
-function spawnItemsForFloor(floorIndex) {
-    const floor = floors[floorIndex - 1];
-    if (!floor || !floor.items) return;
-    
-    floor.items.forEach((itemType, index) => {
-        items.push({
-            type: itemType,
-            x: 80 + (index * 120) + Math.random() * 40,
-            y: floor.y - 35,
-            width: 25,
-            height: 25,
-            collected: false,
-            shimmer: Math.random() * Math.PI * 2 // アニメーション用
+        // プレイヤーデータ
+        this.player = {
+            name: 'ゆうしゃ',
+            job: 'ゆうしゃ',
+            level: 1,
+            hp: 100,
+            maxHp: 100,
+            mp: 30,
+            maxMp: 30,
+            exp: 0,
+            nextExp: 100,
+            gold: 100,
+            attack: 15,
+            defense: 10,
+            speed: 12,
+            luck: 8,
+            portrait: '🧙‍♂️'
+        };
+
+        // アイテムデータ
+        this.items = {
+            potion: { name: 'やくそう', price: 20, sellPrice: 10, effect: 'heal', power: 30, desc: 'HPを30かいふくする' },
+            hiPotion: { name: 'いやしのくすり', price: 50, sellPrice: 25, effect: 'heal', power: 80, desc: 'HPを80かいふくする' },
+            mpPotion: { name: 'まほうのみず', price: 40, sellPrice: 20, effect: 'mp', power: 20, desc: 'MPを20かいふくする' },
+            sword: { name: 'はがねのけん', price: 150, sellPrice: 75, effect: 'weapon', power: 25, desc: 'こうげきりょく+25' },
+            shield: { name: 'てつのたて', price: 120, sellPrice: 60, effect: 'armor', power: 15, desc: 'しゅびりょく+15' },
+            ring: { name: 'ちからのゆびわ', price: 300, sellPrice: 150, effect: 'accessory', power: 10, desc: 'こうげきりょく+10' }
+        };
+
+        // インベントリ
+        this.inventory = {
+            potion: 3,
+            hiPotion: 0,
+            mpPotion: 1
+        };
+
+        // 装備
+        this.equipment = {
+            weapon: null,
+            armor: null,
+            accessory: null
+        };
+
+        // 魔法データ
+        this.spells = {
+            heal: { name: 'ホイミ', cost: 3, effect: 'heal', power: 25, desc: 'HPをかいふくする', level: 1 },
+            healMore: { name: 'ベホイミ', cost: 8, effect: 'heal', power: 60, desc: 'HPを大きくかいふくする', level: 5 },
+            fire: { name: 'メラ', cost: 4, effect: 'damage', power: 30, desc: 'てきにほのおのダメージ', level: 2 },
+            fireMore: { name: 'メラミ', cost: 10, effect: 'damage', power: 70, desc: 'てきに大きなほのおダメージ', level: 7 },
+            lightning: { name: 'ライデイン', cost: 15, effect: 'damage', power: 90, desc: 'てきにでんきのダメージ', level: 10 }
+        };
+
+        // 覚えている魔法
+        this.knownSpells = ['heal'];
+
+        // 敵データ
+        this.enemies = {
+            slime: { 
+                name: 'スライム', emoji: '💚', hp: 35, maxHp: 35, attack: 12, defense: 8, 
+                speed: 10, gold: 15, exp: 12, spells: [], desc: 'やわらかいからだの魔物' 
+            },
+            goblin: { 
+                name: 'ゴブリン', emoji: '👹', hp: 50, maxHp: 50, attack: 18, defense: 12, 
+                speed: 15, gold: 25, exp: 20, spells: [], desc: 'ずるがしこい小さな悪魔' 
+            },
+            wolf: { 
+                name: 'おおかみ', emoji: '🐺', hp: 65, maxHp: 65, attack: 22, defense: 15, 
+                speed: 20, gold: 30, exp: 25, spells: [], desc: 'のやまにすむきょうぼうなけもの' 
+            },
+            orc: { 
+                name: 'オーク', emoji: '👺', hp: 85, maxHp: 85, attack: 28, defense: 20, 
+                speed: 12, gold: 40, exp: 35, spells: [], desc: 'きょだいなからだときばをもつ' 
+            },
+            skeleton: { 
+                name: 'ガイコツ', emoji: '💀', hp: 70, maxHp: 70, attack: 25, defense: 18, 
+                speed: 16, gold: 35, exp: 30, spells: ['curse'], desc: 'しんだものがよみがえったすがた' 
+            },
+            dragon: { 
+                name: 'ドラゴン', emoji: '🐉', hp: 200, maxHp: 200, attack: 45, defense: 35, 
+                speed: 25, gold: 500, exp: 200, spells: ['fire'], desc: 'でんせつのこわいりゅう' 
+            }
+        };
+
+        // 地域別エンカウントテーブル
+        this.encounters = {
+            forest: ['slime', 'goblin'],
+            mountain: ['wolf', 'orc', 'skeleton'],
+            desert: ['skeleton', 'orc'],
+            cave: ['goblin', 'skeleton', 'orc'],
+            castle: ['dragon']
+        };
+
+        // ショップデータ
+        this.shops = {
+            town: ['potion', 'hiPotion', 'mpPotion', 'sword', 'shield']
+        };
+
+        // ゲーム状態
+        this.gameState = {
+            currentLocation: 'town',
+            inBattle: false,
+            currentEnemy: null,
+            battleTurn: 'player',
+            defeatedEnemies: 0,
+            playTime: 0,
+            gameStartTime: Date.now(),
+            flags: {
+                visitedCastle: false,
+                defeatedDragon: false
+            }
+        };
+
+        // UI要素
+        this.elements = {};
+        this.currentScreen = 'title-screen';
+        this.messageQueue = [];
+        this.isTyping = false;
+
+        this.init();
+    }
+
+    init() {
+        this.cacheElements();
+        this.bindEvents();
+        this.loadGame();
+        this.updateDisplay();
+        this.playBGM('title');
+        
+        // 自動セーブタイマー
+        setInterval(() => {
+            if (this.settings.autoSave && this.currentScreen !== 'title-screen') {
+                this.saveGame();
+            }
+        }, 30000); // 30秒ごと
+
+        // プレイ時間更新
+        setInterval(() => {
+            this.gameState.playTime = Math.floor((Date.now() - this.gameState.gameStartTime) / 1000);
+        }, 1000);
+    }
+
+    cacheElements() {
+        // 全ての重要な要素をキャッシュ
+        this.elements = {
+            // 画面
+            titleScreen: document.getElementById('title-screen'),
+            mainScreen: document.getElementById('main-screen'),
+            battleScreen: document.getElementById('battle-screen'),
+            menuScreen: document.getElementById('menu-screen'),
+            statusScreen: document.getElementById('status-screen'),
+            itemsScreen: document.getElementById('items-screen'),
+            shopScreen: document.getElementById('shop-screen'),
+            settingsScreen: document.getElementById('settings-screen'),
+            levelupScreen: document.getElementById('levelup-screen'),
+            gameoverScreen: document.getElementById('gameover-screen'),
+            victoryScreen: document.getElementById('victory-screen'),
+            loadingScreen: document.getElementById('loading-screen'),
+
+            // ステータス表示
+            hp: document.getElementById('hp'),
+            maxHp: document.getElementById('max-hp'),
+            mp: document.getElementById('mp'),
+            maxMp: document.getElementById('max-mp'),
+            level: document.getElementById('level'),
+            gold: document.getElementById('gold'),
+            exp: document.getElementById('exp'),
+            hpBarFill: document.getElementById('hp-bar-fill'),
+            mpBarFill: document.getElementById('mp-bar-fill'),
+
+            // プレイヤー情報
+            charName: document.getElementById('char-name'),
+            charJob: document.getElementById('char-job'),
+            player: document.getElementById('player'),
+
+            // メッセージ
+            messageText: document.getElementById('message-text'),
+
+            // 戦闘
+            enemyGroup: document.getElementById('enemy-group'),
+            enemyNameDisplay: document.getElementById('enemy-name-display'),
+            enemyHpFill: document.getElementById('enemy-hp-fill'),
+            battleMessage: document.getElementById('battle-message'),
+            battleHp: document.getElementById('battle-hp'),
+            battleMaxHp: document.getElementById('battle-max-hp'),
+            battlePlayerHp: document.getElementById('battle-player-hp'),
+
+            // ロケーション
+            locations: document.querySelectorAll('.location')
+        };
+    }
+
+    bindEvents() {
+        // タイトル画面
+        document.getElementById('new-game-btn').addEventListener('click', () => this.newGame());
+        document.getElementById('continue-btn').addEventListener('click', () => this.continueGame());
+        document.getElementById('settings-btn').addEventListener('click', () => this.showScreen('settings-screen'));
+
+        // 設定画面
+        document.getElementById('settings-back-btn').addEventListener('click', () => this.showScreen('title-screen'));
+        document.getElementById('volume-slider').addEventListener('input', (e) => this.updateVolume(e.target.value));
+        document.getElementById('text-speed').addEventListener('change', (e) => this.updateTextSpeed(e.target.value));
+        document.getElementById('auto-save').addEventListener('change', (e) => this.updateAutoSave(e.target.checked));
+
+        // メイン画面
+        document.getElementById('menu-btn').addEventListener('click', () => this.showScreen('menu-screen'));
+        document.getElementById('save-btn').addEventListener('click', () => this.saveGame());
+        document.getElementById('action-btn').addEventListener('click', () => this.performAction());
+
+        // 移動コントロール
+        document.querySelectorAll('.move-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const direction = e.target.dataset.direction;
+                if (direction) this.movePlayer(direction);
+            });
         });
-    });
-}
 
-// プレイヤー行動
-function jumpPlayer() {
-    if (gameState.screen !== 'playing') return;
-    if (player.onGround && !player.isCrouching) {
-        player.velocityY = -15;
-        player.onGround = false;
-        player.isJumping = true;
-        playSound('jump');
+        // ロケーション
+        this.elements.locations.forEach(location => {
+            location.addEventListener('click', () => {
+                const locationName = location.dataset.location;
+                this.goToLocation(locationName);
+            });
+        });
+
+        // メニュー画面
+        document.getElementById('menu-close-btn').addEventListener('click', () => this.showScreen('main-screen'));
+        document.getElementById('status-menu-btn').addEventListener('click', () => this.showScreen('status-screen'));
+        document.getElementById('items-menu-btn').addEventListener('click', () => this.showScreen('items-screen'));
+        document.getElementById('magic-menu-btn').addEventListener('click', () => this.showMagicMenu());
+        document.getElementById('equip-menu-btn').addEventListener('click', () => this.showEquipMenu());
+
+        // ステータス画面
+        document.getElementById('status-close-btn').addEventListener('click', () => this.showScreen('menu-screen'));
+
+        // アイテム画面
+        document.getElementById('items-close-btn').addEventListener('click', () => this.showScreen('menu-screen'));
+
+        // 戦闘コマンド
+        document.getElementById('battle-attack').addEventListener('click', () => this.battleAttack());
+        document.getElementById('battle-magic').addEventListener('click', () => this.showBattleMagic());
+        document.getElementById('battle-item').addEventListener('click', () => this.showBattleItems());
+        document.getElementById('battle-run').addEventListener('click', () => this.battleRun());
+
+        // 戦闘サブメニュー
+        document.querySelectorAll('.submenu-back').forEach(btn => {
+            btn.addEventListener('click', () => this.hideBattleSubmenus());
+        });
+
+        // ショップ
+        document.getElementById('shop-close-btn').addEventListener('click', () => this.showScreen('main-screen'));
+        document.querySelectorAll('.shop-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => this.switchShopTab(e.target.dataset.tab));
+        });
+
+        // レベルアップ
+        document.getElementById('levelup-ok-btn').addEventListener('click', () => this.closeLevelUp());
+
+        // ゲームオーバー
+        document.getElementById('gameover-continue-btn').addEventListener('click', () => this.continueFromGameOver());
+        document.getElementById('gameover-restart-btn').addEventListener('click', () => this.newGame());
+
+        // ビクトリー
+        document.getElementById('victory-restart-btn').addEventListener('click', () => this.newGame());
+
+        // キーボード操作
+        document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+
+        // タッチイベント（スマホ対応）
+        document.addEventListener('touchstart', this.handleTouch.bind(this), { passive: false });
+    }
+
+    // ゲーム開始
+    newGame() {
+        this.resetPlayerData();
+        this.showScreen('main-screen');
+        this.playBGM('field');
+        this.showMessage('ようこそ、ゆうしゃ！せかいをすくうぼうけんがはじまります！');
+        this.saveGame();
+    }
+
+    continueGame() {
+        if (this.loadGame()) {
+            this.showScreen('main-screen');
+            this.playBGM('field');
+            this.showMessage('ぼうけんをさいかいします！');
+        } else {
+            this.showMessage('セーブデータがありません。');
+        }
+    }
+
+    resetPlayerData() {
+        this.player = {
+            name: 'ゆうしゃ',
+            job: 'ゆうしゃ',
+            level: 1,
+            hp: 100,
+            maxHp: 100,
+            mp: 30,
+            maxMp: 30,
+            exp: 0,
+            nextExp: 100,
+            gold: 100,
+            attack: 15,
+            defense: 10,
+            speed: 12,
+            luck: 8,
+            portrait: '🧙‍♂️'
+        };
+
+        this.inventory = {
+            potion: 3,
+            hiPotion: 0,
+            mpPotion: 1
+        };
+
+        this.equipment = {
+            weapon: null,
+            armor: null,
+            accessory: null
+        };
+
+        this.knownSpells = ['heal'];
         
-        // ジャンプ音で敵に気づかれる可能性
-        if (!player.isHiding && !player.isInvisible) {
-            alertNearbyEnemies(player.x, player.y, 80, 0.3);
-        }
-    }
-}
-
-function attackPlayer() {
-    if (gameState.screen !== 'playing' || player.isAttacking || gameState.shurikenCount <= 0) return;
-    
-    player.isAttacking = true;
-    gameState.shurikenCount--;
-
-    // 手裏剣発射
-    projectiles.push({
-        type: 'shuriken',
-        x: player.x + player.width / 2,
-        y: player.y + player.height / 2,
-        width: 20,
-        height: 20,
-        velocityX: player.direction * 8,
-        velocityY: 0,
-        spin: 0 // 回転角度
-    });
-
-    playSound('attack');
-    setTimeout(() => player.isAttacking = false, 300);
-}
-
-function useNinjutsu() {
-    if (gameState.screen !== 'playing' || ninjutsuCooldown > 0) return;
-    
-    const jutsu = ninjutsu[currentNinjutsu];
-    if (gameState.chakra < jutsu.cost) {
-        playSound('error');
-        return;
+        this.gameState = {
+            currentLocation: 'town',
+            inBattle: false,
+            currentEnemy: null,
+            battleTurn: 'player',
+            defeatedEnemies: 0,
+            playTime: 0,
+            gameStartTime: Date.now(),
+            flags: {
+                visitedCastle: false,
+                defeatedDragon: false
+            }
+        };
     }
 
-    gameState.chakra -= jutsu.cost;
-    ninjutsuCooldown = jutsu.cooldown;
-
-    switch(currentNinjutsu) {
-        case 'BUNSHIN':
-            createClone();
-            break;
-        case 'SMOKE':
-            useSmokeBomb();
-            break;
-        case 'INVISIBLE':
-            becomeInvisible();
-            break;
-    }
-    
-    playSound('ninjutsu');
-}
-
-function createClone() {
-    // 既存の分身を削除
-    player.clones = [];
-    
-    // 新しい分身を2体作成
-    player.clones.push({
-        x: player.x - 60,
-        y: player.y,
-        life: 180,
-        direction: -1,
-        alpha: 0.7
-    });
-    player.clones.push({
-        x: player.x + 60,
-        y: player.y,
-        life: 180,
-        direction: 1,
-        alpha: 0.7
-    });
-    
-    // 分身が敵の注意をそらす
-    enemies.forEach(enemy => {
-        if (Math.random() < 0.6) {
-            enemy.alertLevel = Math.max(0, enemy.alertLevel - 1);
-        }
-    });
-}
-
-function useSmokeBomb() {
-    player.smokeTime = 120;
-    
-    // 煙で周囲の敵の警戒を下げる
-    enemies.forEach(enemy => {
-        const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-        if (dist < 150) {
-            enemy.alertLevel = Math.max(0, enemy.alertLevel - 2);
-            enemy.stunTime = 60; // 短時間動きを止める
-        }
-    });
-}
-
-function becomeInvisible() {
-    player.isInvisible = true;
-    player.invisibleTime = 180;
-    
-    // 透明中は警戒レベルを下げる
-    enemies.forEach(enemy => {
-        enemy.alertLevel = Math.max(0, enemy.alertLevel - 1);
-    });
-}
-
-function toggleCrouch() {
-    if (player.isCrouching) {
-        // 立ち上がる
-        player.isCrouching = false;
-        player.height = 48;
-        player.y -= 24;
-    } else {
-        // しゃがむ
-        player.isCrouching = true;
-        player.height = 24;
-        player.y += 24;
-    }
-}
-
-function toggleHide() {
-    if (isInShadow()) {
-        player.isHiding = !player.isHiding;
-        gameState.stealthMode = player.isHiding;
-        player.shadowBlend = player.isHiding;
+    // 画面管理
+    showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.add('hidden');
+        });
+        document.getElementById(screenId).classList.remove('hidden');
+        this.currentScreen = screenId;
         
-        if (player.isHiding) {
-            playSound('hide');
-        }
-    } else {
-        // 影にいない場合は隠れられない
-        playSound('error');
-    }
-}
-
-function switchNinjutsu() {
-    const jutsuKeys = Object.keys(ninjutsu);
-    const currentIndex = jutsuKeys.indexOf(currentNinjutsu);
-    currentNinjutsu = jutsuKeys[(currentIndex + 1) % jutsuKeys.length];
-    playSound('switch');
-}
-
-function isInShadow() {
-    return shadows.some(shadow => 
-        player.x < shadow.x + shadow.width &&
-        player.x + player.width > shadow.x &&
-        player.y < shadow.y + shadow.height &&
-        player.y + player.height > shadow.y
-    );
-}
-
-// 音効果再生
-function playSound(type) {
-    if (!audioContext) return;
-    
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    switch(type) {
-        case 'jump':
-            oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.1);
-            break;
-        case 'attack':
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-            oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.1);
-            gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.1);
-            break;
-        case 'ninjutsu':
-            oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.08, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.3);
-            break;
-        case 'hide':
-            oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.2);
-            break;
-        case 'switch':
-            oscillator.frequency.setValueAtTime(500, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.1);
-            break;
-        case 'error':
-            oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.2);
-            break;
-    }
-}
-
-// 近くの敵に警戒させる
-function alertNearbyEnemies(x, y, radius, alertAmount) {
-    enemies.forEach(enemy => {
-        const dist = Math.hypot(enemy.x - x, enemy.y - y);
-        if (dist < radius) {
-            enemy.alertLevel = Math.min(5, enemy.alertLevel + alertAmount * enemy.alertness);
-            enemy.lastSeen.x = x;
-            enemy.lastSeen.y = y;
-        }
-    });
-}
-
-// ゲームループ
-function gameLoop() {
-    if (gameState.screen === 'playing' && !gameState.paused) {
-        update();
-        render();
-    }
-    requestAnimationFrame(gameLoop);
-}
-
-// ゲーム更新
-function update() {
-    updatePlayer();
-    updateEnemies();
-    updateProjectiles();
-    updateItems();
-    updateCollisions();
-    updateGameProgress();
-    updateNinjutsu();
-    updateEnvironment();
-}
-
-// プレイヤー更新
-function updatePlayer() {
-    // 各種タイマー管理
-    if (player.invulnerable) {
-        player.invulnerableTime--;
-        if (player.invulnerableTime <= 0) {
-            player.invulnerable = false;
+        // 画面別の初期化処理
+        switch (screenId) {
+            case 'main-screen':
+                this.updateDisplay();
+                this.updateLocationDisplay();
+                break;
+            case 'status-screen':
+                this.updateStatusDisplay();
+                break;
+            case 'items-screen':
+                this.updateItemsDisplay();
+                break;
+            case 'shop-screen':
+                this.updateShopDisplay();
+                break;
+            case 'battle-screen':
+                this.updateBattleDisplay();
+                break;
         }
     }
 
-    // 忍術効果管理
-    if (player.smokeTime > 0) player.smokeTime--;
-    
-    if (player.invisibleTime > 0) {
-        player.invisibleTime--;
-    } else {
-        player.isInvisible = false;
+    showMessage(message, callback) {
+        this.messageQueue.push({ text: message, callback });
+        if (!this.isTyping) {
+            this.processMessageQueue();
+        }
     }
 
-    // 分身管理
-    player.clones = player.clones.filter(clone => {
-        clone.life--;
-        clone.alpha = Math.max(0.2, clone.life / 180 * 0.7);
+    processMessageQueue() {
+        if (this.messageQueue.length === 0) {
+            this.isTyping = false;
+            return;
+        }
+
+        const message = this.messageQueue.shift();
+        this.isTyping = true;
         
-        // 分身の簡単な移動
-        clone.x += clone.direction * 0.5;
+        this.typeMessage(message.text, () => {
+            if (message.callback) {
+                setTimeout(message.callback, 1000);
+            }
+            setTimeout(() => this.processMessageQueue(), 1500);
+        });
+    }
+
+    typeMessage(text, callback) {
+        const element = this.currentScreen.includes('battle') ? 
+            this.elements.battleMessage : this.elements.messageText;
         
-        return clone.life > 0;
-    });
-    
-    // 移動速度計算
-    let speed = 5;
-    if (player.isCrouching) speed = 2;
-    if (player.isHiding) speed = 1;
-    if (player.isInvisible) speed = 3;
-
-    // 左右移動
-    if (keys.ArrowLeft || keys.KeyA) {
-        player.velocityX = -speed;
-        player.direction = -1;
-    } else if (keys.ArrowRight || keys.KeyD) {
-        player.velocityX = speed;
-        player.direction = 1;
-    } else {
-        player.velocityX *= 0.8; // 摩擦
+        element.textContent = '';
+        let index = 0;
+        
+        const speed = this.getTextSpeed();
+        const interval = setInterval(() => {
+            if (index < text.length) {
+                element.textContent += text[index];
+                index++;
+            } else {
+                clearInterval(interval);
+                if (callback) callback();
+            }
+        }, speed);
     }
-    
-    // 重力適用
-    if (!player.onGround) {
-        player.velocityY += 0.8;
-    }
-    
-    // 位置更新
-    player.x += player.velocityX;
-    player.y += player.velocityY;
 
-    // 画面端制限
-    if (player.x < 0) player.x = 0;
-    if (player.x + player.width > canvasWidth) player.x = canvasWidth - player.width;
-
-    // フロアとの衝突判定
-    checkFloorCollisions();
-
-    // 移動音による敵への警戒
-    if ((Math.abs(player.velocityX) > 3 || Math.abs(player.velocityY) > 3) && 
-        !player.isHiding && !player.isInvisible && !player.isCrouching) {
-        if (Math.random() < 0.02) {
-            alertNearbyEnemies(player.x, player.y, 100, 0.1);
+    getTextSpeed() {
+        switch (this.settings.textSpeed) {
+            case 'slow': return 100;
+            case 'fast': return 30;
+            default: return 60;
         }
     }
 
-    updateScroll();
-    updateCurrentFloor();
-}
+    // 表示更新
+    updateDisplay() {
+        // ステータス表示更新
+        this.elements.hp.textContent = this.player.hp;
+        this.elements.maxHp.textContent = this.player.maxHp;
+        this.elements.mp.textContent = this.player.mp;
+        this.elements.maxMp.textContent = this.player.maxMp;
+        this.elements.level.textContent = this.player.level;
+        this.elements.gold.textContent = this.player.gold;
+        this.elements.exp.textContent = this.player.exp;
+        this.elements.charName.textContent = this.player.name;
+        
+        // HPバー更新
+        const hpPercent = (this.player.hp / this.player.maxHp) * 100;
+        this.elements.hpBarFill.style.width = `${hpPercent}%`;
+        
+        // MPバー更新
+        const mpPercent = (this.player.mp / this.player.maxMp) * 100;
+        this.elements.mpBarFill.style.width = `${mpPercent}%`;
 
-function checkFloorCollisions() {
-    player.onGround = false;
-    
-    floors.forEach(floor => {
-        if (player.y + player.height >= floor.y &&
-            player.y + player.height <= floor.y + FLOOR_HEIGHT + 5 &&
-            player.velocityY >= 0) {
-            player.y = floor.y - player.height;
-            player.velocityY = 0;
-            player.onGround = true;
-            player.isJumping = false;
-        }
-    });
-
-    // 最下層より下に落ちたらスタート位置に戻す
-    if (player.y + player.height > floors[0].y + FLOOR_HEIGHT) {
-        resetPlayerPosition();
+        // プレイヤーキャラクター更新
+        this.elements.player.textContent = this.player.portrait;
+        
+        // レベル表示更新
+        const levelSpan = this.elements.charJob.querySelector('span');
+        if (levelSpan) levelSpan.textContent = this.player.level;
     }
-}
 
-function resetPlayerPosition() {
-    player.x = player.spawnX;
-    player.y = player.spawnY;
-    player.velocityX = 0;
-    player.velocityY = 0;
-    player.onGround = false;
-    player.isJumping = false;
-}
-
-function updateScroll() {
-    const targetScrollY = Math.max(0, player.y - canvasHeight / 2);
-    const maxScrollY = floors[0].y - floors[floors.length - 1].y + 100;
-    gameState.scrollY = Math.min(targetScrollY, maxScrollY);
-}
-
-function updateCurrentFloor() {
-    let floorNum = 1;
-    for (let i = floors.length - 1; i >= 0; i--) {
-        if (player.y <= floors[i].y) {
-            floorNum = i + 1;
-            break;
+    updateLocationDisplay() {
+        this.elements.locations.forEach(location => {
+            location.classList.remove('active');
+        });
+        
+        const currentLoc = document.getElementById(`${this.gameState.currentLocation}-loc`);
+        if (currentLoc) {
+            currentLoc.classList.add('active');
         }
     }
-    
-    const previousFloor = gameState.currentFloor;
-    gameState.currentFloor = floorNum;
-    
-    if (gameState.currentFloor !== previousFloor && !spawnedFloors.has(gameState.currentFloor)) {
-        spawnEntitiesForFloor(gameState.currentFloor);
-        spawnedFloors.add(gameState.currentFloor);
-    }
-}
 
-// 敵更新
-function updateEnemies() {
-    enemies.forEach(enemy => {
-        // 気絶時間があれば動かない
-        if (enemy.stunTime > 0) {
-            enemy.stunTime--;
+    updateStatusDisplay() {
+        document.getElementById('status-name').textContent = this.player.name;
+        document.getElementById('status-job').textContent = this.player.job;
+        document.getElementById('status-level').textContent = this.player.level;
+        document.getElementById('status-next-exp').textContent = this.player.nextExp - this.player.exp;
+        document.getElementById('status-attack').textContent = this.getTotalAttack();
+        document.getElementById('status-defense').textContent = this.getTotalDefense();
+        document.getElementById('status-speed').textContent = this.player.speed;
+        document.getElementById('status-luck').textContent = this.player.luck;
+    }
+
+    updateItemsDisplay() {
+        const itemsList = document.getElementById('items-list');
+        itemsList.innerHTML = '';
+        
+        Object.entries(this.inventory).forEach(([itemId, count]) => {
+            if (count > 0) {
+                const item = this.items[itemId];
+                const itemElement = document.createElement('div');
+                itemElement.className = 'item-entry';
+                itemElement.innerHTML = `
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-count">× ${count}</div>
+                    <div class="item-description">${item.desc}</div>
+                `;
+                itemElement.addEventListener('click', () => this.useItem(itemId));
+                itemsList.appendChild(itemElement);
+            }
+        });
+    }
+
+    updateShopDisplay() {
+        document.getElementById('shop-gold').textContent = this.player.gold;
+        this.updateShopItems();
+    }
+
+    updateShopItems() {
+        const shopItems = document.getElementById('shop-items');
+        shopItems.innerHTML = '';
+        
+        const availableItems = this.shops[this.gameState.currentLocation] || [];
+        
+        availableItems.forEach(itemId => {
+            const item = this.items[itemId];
+            const shopItem = document.createElement('div');
+            shopItem.className = 'shop-item';
+            shopItem.innerHTML = `
+                <div class="shop-item-info">
+                    <div class="shop-item-name">${item.name}</div>
+                    <div class="shop-item-desc">${item.desc}</div>
+                </div>
+                <div class="shop-item-price">${item.price}G</div>
+                <button class="buy-btn" data-item="${itemId}" data-price="${item.price}">かう</button>
+            `;
+            
+            const buyBtn = shopItem.querySelector('.buy-btn');
+            buyBtn.addEventListener('click', () => this.buyItem(itemId, item.price));
+            
+            shopItems.appendChild(shopItem);
+        });
+    }
+
+    updateBattleDisplay() {
+        if (this.gameState.currentEnemy) {
+            this.elements.enemyNameDisplay.textContent = this.gameState.currentEnemy.name;
+            this.updateEnemyHP();
+        }
+        
+        this.elements.battleHp.textContent = this.player.hp;
+        this.elements.battleMaxHp.textContent = this.player.maxHp;
+        
+        const hpPercent = (this.player.hp / this.player.maxHp) * 100;
+        this.elements.battlePlayerHp.style.width = `${hpPercent}%`;
+    }
+
+    updateEnemyHP() {
+        if (this.gameState.currentEnemy) {
+            const hpPercent = (this.gameState.currentEnemy.hp / this.gameState.currentEnemy.maxHp) * 100;
+            this.elements.enemyHpFill.style.width = `${hpPercent}%`;
+        }
+    }
+
+    // 移動とアクション
+    movePlayer(direction) {
+        // プレイヤーキャラクターの移動アニメーション
+        const playerElement = this.elements.player;
+        playerElement.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+            playerElement.style.transform = 'scale(1)';
+        }, 200);
+        
+        this.playSound('move');
+        
+        // ランダムエンカウントチェック
+        if (Math.random() < 0.15 && this.gameState.currentLocation !== 'town') {
+            this.randomEncounter();
+        }
+    }
+
+    goToLocation(locationName) {
+        if (locationName === this.gameState.currentLocation) return;
+        
+        // 特別な場所の条件チェック
+        if (locationName === 'castle' && this.player.level < 5) {
+            this.showMessage('まおうのしろは とても きけんです！もっと つよくなってから きましょう！');
             return;
         }
         
-        updateEnemyBehavior(enemy);
-        updateEnemyAlert(enemy);
-    });
-}
-
-function updateEnemyBehavior(enemy) {
-    switch(enemy.type) {
-        case 'samurai':
-        case 'spearman':
-        case 'shieldman':
-            updateMeleeEnemy(enemy);
-            break;
-        case 'archer':
-            updateArcherEnemy(enemy);
-            break;
-        case 'lord':
-            updateLordEnemy(enemy);
-            break;
-    }
-}
-
-function updateMeleeEnemy(enemy) {
-    // 警戒レベルに応じて速度変更
-    enemy.speed = enemy.baseSpeed * (1 + enemy.alertLevel * 0.2);
-    
-    // 基本的なパトロール
-    enemy.x += enemy.speed * enemy.direction;
-    
-    if (enemy.x <= enemy.patrolLeft || enemy.x >= enemy.patrolRight) {
-        enemy.direction *= -1;
-    }
-    
-    // プレイヤー検出
-    if (!player.isInvisible && !player.isHiding) {
-        const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-        if (dist < 80 && enemy.alertLevel < 3) {
-            enemy.alertLevel = Math.min(5, enemy.alertLevel + 0.1 * enemy.alertness);
-            enemy.lastSeen.x = player.x;
-            enemy.lastSeen.y = player.y;
+        this.gameState.currentLocation = locationName;
+        this.updateLocationDisplay();
+        
+        // BGM切り替え
+        if (locationName === 'town') {
+            this.playBGM('town');
+        } else {
+            this.playBGM('field');
+        }
+        
+        // 場所別メッセージ
+        const locationMessages = {
+            town: 'まちに つきました。やすらかな ばしょです。',
+            forest: 'もりに はいりました。モンスターが でそうです...',
+            mountain: 'やまに のぼりました。きょうぼうな モンスターが いそうです...',
+            desert: 'さばくに きました。あつくて のどが かわきます...',
+            cave: 'どうくつに はいりました。くらくて こわいです...',
+            castle: 'まおうのしろに つきました。きょうふが みを つつみます...'
+        };
+        
+        this.showMessage(locationMessages[locationName] || 'あたらしい ばしょに つきました。');
+        
+        // 場所に応じた特別処理
+        if (locationName === 'town') {
+            setTimeout(() => {
+                this.showScreen('shop-screen');
+            }, 2000);
+        } else if (locationName === 'castle' && !this.gameState.flags.visitedCastle) {
+            this.gameState.flags.visitedCastle = true;
+            this.showMessage('ついに まおうのしろに たどり つきました！');
         }
     }
-}
 
-function updateArcherEnemy(enemy) {
-    // 射撃タイマー
-    enemy.shootTimer++;
-    
-    // プレイヤーを狙って矢を撃つ
-    if (enemy.shootTimer >= (120 - enemy.alertLevel * 10) && !player.isInvisible) {
-        const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-        if (dist < 200) {
-            enemyProjectiles.push({
-                x: enemy.x + enemy.width / 2,
-                y: enemy.y + enemy.height / 2,
-                width: 30,
-                height: 4,
-                velocityX: player.x < enemy.x ? -4 : 4,
-                velocityY: (player.y - enemy.y) * 0.02,
-                spin: 0
+    performAction() {
+        const location = this.gameState.currentLocation;
+        
+        switch (location) {
+            case 'town':
+                this.showScreen('shop-screen');
+                break;
+            case 'forest':
+            case 'mountain':
+            case 'desert':
+            case 'cave':
+            case 'castle':
+                this.randomEncounter();
+                break;
+            default:
+                this.showMessage('ここでは なにも できません。');
+        }
+    }
+
+    // 戦闘システム
+    randomEncounter() {
+        const possibleEnemies = this.encounters[this.gameState.currentLocation];
+        if (!possibleEnemies || possibleEnemies.length === 0) return;
+        
+        const enemyType = possibleEnemies[Math.floor(Math.random() * possibleEnemies.length)];
+        this.startBattle(enemyType);
+    }
+
+    startBattle(enemyType) {
+        const enemyTemplate = this.enemies[enemyType];
+        this.gameState.currentEnemy = { ...enemyTemplate }; // 敵データをコピー
+        this.gameState.inBattle = true;
+        this.gameState.battleTurn = 'player';
+        
+        this.showScreen('battle-screen');
+        this.playBGM('battle');
+        this.createEnemySprite();
+        this.showMessage(`${this.gameState.currentEnemy.name}が あらわれた！`);
+    }
+
+    createEnemySprite() {
+        const enemyGroup = this.elements.enemyGroup;
+        enemyGroup.innerHTML = '';
+        
+        const enemySprite = document.createElement('div');
+        enemySprite.className = 'enemy';
+        enemySprite.textContent = this.gameState.currentEnemy.emoji;
+        enemySprite.addEventListener('click', () => this.selectEnemy());
+        
+        enemyGroup.appendChild(enemySprite);
+        this.updateBattleDisplay();
+    }
+
+    selectEnemy() {
+        const enemy = document.querySelector('.enemy');
+        enemy.classList.add('selected');
+        setTimeout(() => enemy.classList.remove('selected'), 500);
+    }
+
+    battleAttack() {
+        if (this.gameState.battleTurn !== 'player') return;
+        
+        this.hideBattleSubmenus();
+        
+        const damage = this.calculateDamage(this.getTotalAttack(), this.gameState.currentEnemy.defense);
+        this.gameState.currentEnemy.hp -= damage;
+        
+        // ダメージエフェクト
+        const enemy = document.querySelector('.enemy');
+        enemy.classList.add('damaged');
+        setTimeout(() => enemy.classList.remove('damaged'), 300);
+        
+        this.playSound('attack');
+        
+        if (this.gameState.currentEnemy.hp <= 0) {
+            this.gameState.currentEnemy.hp = 0;
+            this.updateEnemyHP();
+            this.showMessage(`${this.gameState.currentEnemy.name}に ${damage}の ダメージ！`, () => {
+                this.battleWin();
             });
-            enemy.shootTimer = 0;
+        } else {
+            this.updateEnemyHP();
+            this.showMessage(`${this.gameState.currentEnemy.name}に ${damage}の ダメージ！`, () => {
+                this.enemyTurn();
+            });
         }
     }
-}
 
-function updateLordEnemy(enemy) {
-    // プレイヤーが近づくと起きる
-    const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-    
-    if (dist < 100 && !player.isInvisible && !player.isHiding) {
-        if (!enemy.awake) {
-            enemy.awake = true;
-            gameState.perfectStealth = false;
-            alertNearbyEnemies(enemy.x, enemy.y, 200, 2);
-        }
+    calculateDamage(attack, defense) {
+        const baseDamage = Math.max(1, attack - defense);
+        const variance = Math.random() * 0.4 + 0.8; // 0.8 - 1.2倍
+        return Math.floor(baseDamage * variance);
     }
-    
-    // 起きている間は少し動く
-    if (enemy.awake) {
-        enemy.x += Math.sin(Date.now() * 0.001) * 0.5;
-    }
-}
 
-function updateEnemyAlert(enemy) {
-    // 警戒レベルを徐々に下げる
-    if (enemy.alertLevel > 0) {
-        enemy.alertLevel = Math.max(0, enemy.alertLevel - 0.01);
-    }
-    
-    // 高警戒状態の敵は他の敵も警戒させる
-    if (enemy.alertLevel > 4) {
-        enemies.forEach(otherEnemy => {
-            if (otherEnemy !== enemy) {
-                const dist = Math.hypot(enemy.x - otherEnemy.x, enemy.y - otherEnemy.y);
-                if (dist < 120) {
-                    otherEnemy.alertLevel = Math.min(5, otherEnemy.alertLevel + 0.05);
-                }
+    enemyTurn() {
+        this.gameState.battleTurn = 'enemy';
+        
+        setTimeout(() => {
+            // 敵の行動選択
+            const enemy = this.gameState.currentEnemy;
+            let action = 'attack';
+            
+            // 魔法を使える敵は30%の確率で魔法を使用
+            if (enemy.spells.length > 0 && Math.random() < 0.3) {
+                action = 'spell';
             }
-        });
-    }
-}
-
-// 発射物更新
-function updateProjectiles() {
-    // プレイヤーの手裏剣
-    projectiles = projectiles.filter(projectile => {
-        projectile.x += projectile.velocityX;
-        projectile.y += projectile.velocityY;
-        projectile.spin += 0.3;
-        
-        return projectile.x > -30 && projectile.x < canvasWidth + 30 &&
-               projectile.y > -30 && projectile.y < canvasHeight + 500;
-    });
-    
-    // 敵の矢
-    enemyProjectiles = enemyProjectiles.filter(projectile => {
-        projectile.x += projectile.velocityX;
-        projectile.y += projectile.velocityY;
-        projectile.spin += 0.1;
-        
-        return projectile.x > -50 && projectile.x < canvasWidth + 50 &&
-               projectile.y > -50 && projectile.y < canvasHeight + 500;
-    });
-}
-
-// アイテム更新
-function updateItems() {
-    items.forEach(item => {
-        if (item.collected) return;
-        
-        // アニメーション更新
-        item.shimmer += 0.1;
-        
-        // プレイヤーとの衝突判定
-        if (isColliding(player, item)) {
-            item.collected = true;
-            collectItem(item);
-        }
-    });
-}
-
-function collectItem(item) {
-    playSound('ninjutsu');
-    
-    switch(item.type) {
-        case 'scroll':
-            gameState.chakra = Math.min(5, gameState.chakra + 1);
-            gameState.score += 200;
-            break;
-        case 'poison_shuriken':
-            gameState.shurikenCount += 5;
-            gameState.score += 100;
-            break;
-        case 'smoke_bomb':
-            useSmokeBomb();
-            gameState.score += 150;
-            break;
-        case 'chakra_pill':
-            gameState.chakra = Math.min(5, gameState.chakra + 2);
-            gameState.life = Math.min(3, gameState.life + 1); // 体力も回復
-            gameState.score += 300;
-            break;
-    }
-}
-
-// 衝突判定更新
-function updateCollisions() {
-    // プレイヤーと敵の衝突
-    if (!player.invulnerable && !player.isInvisible) {
-        enemies.forEach(enemy => {
-            if (isColliding(player, enemy)) {
-                takeDamage();
-                gameState.perfectStealth = false;
-            }
-        });
-    }
-    
-    // プレイヤーと敵の矢の衝突
-    if (!player.invulnerable && !player.isInvisible) {
-        enemyProjectiles.forEach((arrow, index) => {
-            if (isColliding(player, arrow)) {
-                enemyProjectiles.splice(index, 1);
-                takeDamage();
-                gameState.perfectStealth = false;
-            }
-        });
-    }
-    
-    // 手裏剣と敵の衝突
-    projectiles.forEach((shuriken, shurikenIndex) => {
-        enemies.forEach((enemy, enemyIndex) => {
-            if (isColliding(shuriken, enemy)) {
-                projectiles.splice(shurikenIndex, 1);
-                enemy.health--;
-                gameState.score += 100;
+            
+            if (action === 'attack') {
+                const damage = this.calculateDamage(enemy.attack, this.getTotalDefense());
+                this.player.hp = Math.max(0, this.player.hp - damage);
                 
-                // 敵を倒した時のスコア
-                if (enemy.health <= 0) {
-                    enemies.splice(enemyIndex, 1);
-                    const killBonus = enemy.type === 'lord' ? 1000 : 200;
-                    gameState.score += killBonus;
-                    
-                    if (enemy.type !== 'lord') {
-                        gameState.stealthBonus += 50;
-                    }
+                this.playSound('damage');
+                this.vibrate([100]);
+                
+                if (this.player.hp <= 0) {
+                    this.showMessage(`${enemy.name}の こうげき！ ${damage}の ダメージを うけた！`, () => {
+                        this.battleLose();
+                    });
                 } else {
-                    // ダメージを受けた敵は警戒レベル最大に
-                    enemy.alertLevel = 5;
-                    alertNearbyEnemies(enemy.x, enemy.y, 150, 1);
+                    this.updateDisplay();
+                    this.updateBattleDisplay();
+                    this.showMessage(`${enemy.name}の こうげき！ ${damage}の ダメージを うけた！`, () => {
+                        this.gameState.battleTurn = 'player';
+                    });
                 }
+            } else {
+                // 敵の魔法攻撃
+                const spellDamage = Math.floor(Math.random() * 30) + 20;
+                this.player.hp = Math.max(0, this.player.hp - spellDamage);
+                
+                this.playSound('magic');
+                this.updateDisplay();
+                this.updateBattleDisplay();
+                
+                this.showMessage(`${enemy.name}は じゅもんを となえた！ ${spellDamage}の ダメージ！`, () => {
+                    if (this.player.hp <= 0) {
+                        this.battleLose();
+                    } else {
+                        this.gameState.battleTurn = 'player';
+                    }
+                });
+            }
+        }, 1000);
+    }
+
+    battleWin() {
+        const enemy = this.gameState.currentEnemy;
+        const expGained = enemy.exp;
+        const goldGained = enemy.gold;
+        
+        this.player.exp += expGained;
+        this.player.gold += goldGained;
+        this.gameState.defeatedEnemies++;
+        
+        this.playSound('victory');
+        this.vibrate([200, 100, 200]);
+        
+        this.showMessage(`${enemy.name}を たおした！`, () => {
+            this.showMessage(`${expGained} の けいけんちと ${goldGained}G を てにいれた！`, () => {
+                // レベルアップチェック
+                if (this.player.exp >= this.player.nextExp) {
+                    this.levelUp();
+                } else {
+                    this.endBattle();
+                }
+            });
+        });
+    }
+
+    battleLose() {
+        this.showMessage('あなたは しんでしまった...', () => {
+            this.gameState.inBattle = false;
+            this.showScreen('gameover-screen');
+            this.playBGM('gameover');
+        });
+    }
+
+    battleRun() {
+        if (this.gameState.currentLocation === 'castle') {
+            this.showMessage('にげることが できない！');
+            return;
+        }
+        
+        const runChance = 0.7 + (this.player.speed / 100);
+        
+        if (Math.random() < runChance) {
+            this.showMessage('うまく にげることが できた！', () => {
+                this.endBattle();
+            });
+        } else {
+            this.showMessage('にげることが できなかった！', () => {
+                this.enemyTurn();
+            });
+        }
+    }
+
+    endBattle() {
+        this.gameState.inBattle = false;
+        this.gameState.currentEnemy = null;
+        this.gameState.battleTurn = 'player';
+        
+        // ドラゴンを倒した場合
+        if (this.gameState.defeatedEnemies > 0 && this.gameState.currentLocation === 'castle' && !this.gameState.flags.defeatedDragon) {
+            this.gameState.flags.defeatedDragon = true;
+            this.showScreen('victory-screen');
+            this.updateVictoryStats();
+            this.playBGM('victory');
+            return;
+        }
+        
+        this.showScreen('main-screen');
+        this.playBGM(this.gameState.currentLocation === 'town' ? 'town' : 'field');
+        this.updateDisplay();
+    }
+
+    // 魔法システム
+    showBattleMagic() {
+        const magicMenu = document.getElementById('magic-battle-menu');
+        const magicList = document.getElementById('magic-list');
+        
+        magicList.innerHTML = '';
+        
+        this.knownSpells.forEach(spellId => {
+            const spell = this.spells[spellId];
+            const magicItem = document.createElement('div');
+            magicItem.className = 'magic-item';
+            
+            const canCast = this.player.mp >= spell.cost;
+            if (!canCast) {
+                magicItem.style.opacity = '0.5';
+                magicItem.style.pointerEvents = 'none';
+            }
+            
+            magicItem.innerHTML = `
+                <div class="magic-name">${spell.name}</div>
+                <div class="magic-cost">MP ${spell.cost}</div>
+            `;
+            
+            if (canCast) {
+                magicItem.addEventListener('click', () => this.castSpell(spellId));
+            }
+            
+            magicList.appendChild(magicItem);
+        });
+        
+        magicMenu.classList.remove('hidden');
+    }
+
+    castSpell(spellId) {
+        const spell = this.spells[spellId];
+        
+        if (this.player.mp < spell.cost) {
+            this.showMessage('MPが たりません！');
+            return;
+        }
+        
+        this.player.mp -= spell.cost;
+        this.hideBattleSubmenus();
+        
+        this.playSound('magic');
+        
+        if (spell.effect === 'heal') {
+            const healAmount = spell.power + Math.floor(Math.random() * 10);
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmount);
+            
+            this.updateDisplay();
+            this.updateBattleDisplay();
+            
+            this.showMessage(`${spell.name}！ HPが ${healAmount} かいふくした！`, () => {
+                this.enemyTurn();
+            });
+        } else if (spell.effect === 'damage') {
+            const damage = spell.power + Math.floor(Math.random() * 15);
+            this.gameState.currentEnemy.hp = Math.max(0, this.gameState.currentEnemy.hp - damage);
+            
+            const enemy = document.querySelector('.enemy');
+            enemy.classList.add('damaged');
+            setTimeout(() => enemy.classList.remove('damaged'), 300);
+            
+            if (this.gameState.currentEnemy.hp <= 0) {
+                this.updateEnemyHP();
+                this.showMessage(`${spell.name}！ ${this.gameState.currentEnemy.name}に ${damage}の ダメージ！`, () => {
+                    this.battleWin();
+                });
+            } else {
+                this.updateEnemyHP();
+                this.showMessage(`${spell.name}！ ${this.gameState.currentEnemy.name}に ${damage}の ダメージ！`, () => {
+                    this.enemyTurn();
+                });
+            }
+        }
+    }
+
+    showBattleItems() {
+        const itemMenu = document.getElementById('item-battle-menu');
+        const itemsList = document.getElementById('battle-items-list');
+        
+        itemsList.innerHTML = '';
+        
+        Object.entries(this.inventory).forEach(([itemId, count]) => {
+            if (count > 0 && this.items[itemId].effect === 'heal') {
+                const item = this.items[itemId];
+                const itemElement = document.createElement('div');
+                itemElement.className = 'battle-item';
+                itemElement.innerHTML = `
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-count">× ${count}</div>
+                `;
+                
+                itemElement.addEventListener('click', () => this.useBattleItem(itemId));
+                itemsList.appendChild(itemElement);
             }
         });
-    });
+        
+        itemMenu.classList.remove('hidden');
+    }
 
-    // 分身効果（敵の注意をそらす）
-    player.clones.forEach(clone => {
-        enemies.forEach(enemy => {
-            const dist = Math.hypot(enemy.x - clone.x, enemy.y - clone.y);
-            if (dist < 80 && Math.random() < 0.02) {
-                enemy.alertLevel = Math.max(0, enemy.alertLevel - 0.3);
-                // 分身の方を向く
-                enemy.direction = clone.x < enemy.x ? -1 : 1;
+    useBattleItem(itemId) {
+        const item = this.items[itemId];
+        
+        if (this.inventory[itemId] <= 0) return;
+        
+        this.inventory[itemId]--;
+        this.hideBattleSubmenus();
+        
+        if (item.effect === 'heal') {
+            const healAmount = item.power;
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmount);
+            
+            this.playSound('heal');
+            this.updateDisplay();
+            this.updateBattleDisplay();
+            
+            this.showMessage(`${item.name}を つかった！ HPが ${healAmount} かいふくした！`, () => {
+                this.enemyTurn();
+            });
+        } else if (item.effect === 'mp') {
+            const mpAmount = item.power;
+            this.player.mp = Math.min(this.player.maxMp, this.player.mp + mpAmount);
+            
+            this.playSound('heal');
+            this.updateDisplay();
+            this.updateBattleDisplay();
+            
+            this.showMessage(`${item.name}を つかった！ MPが ${mpAmount} かいふくした！`, () => {
+                this.enemyTurn();
+            });
+        }
+    }
+
+    hideBattleSubmenus() {
+        document.querySelectorAll('.battle-submenu').forEach(menu => {
+            menu.classList.add('hidden');
+        });
+    }
+
+    // レベルアップシステム
+    levelUp() {
+        const oldLevel = this.player.level;
+        this.player.level++;
+        
+        // ステータス上昇
+        const hpIncrease = Math.floor(Math.random() * 15) + 10;
+        const mpIncrease = Math.floor(Math.random() * 8) + 5;
+        const attackIncrease = Math.floor(Math.random() * 5) + 2;
+        const defenseIncrease = Math.floor(Math.random() * 4) + 2;
+        
+        this.player.maxHp += hpIncrease;
+        this.player.hp = this.player.maxHp; // 全回復
+        this.player.maxMp += mpIncrease;
+        this.player.mp = this.player.maxMp; // 全回復
+        this.player.attack += attackIncrease;
+        this.player.defense += defenseIncrease;
+        
+        // 次のレベルまでのEXP更新
+        this.player.nextExp = this.player.level * 100;
+        
+        // 新しい魔法を覚える
+        const newSpell = this.checkForNewSpell(this.player.level);
+        
+        // レベルアップ画面表示
+        document.getElementById('old-level').textContent = oldLevel;
+        document.getElementById('new-level').textContent = this.player.level;
+        document.getElementById('hp-increase').textContent = hpIncrease;
+        document.getElementById('mp-increase').textContent = mpIncrease;
+        document.getElementById('attack-increase').textContent = attackIncrease;
+        document.getElementById('defense-increase').textContent = defenseIncrease;
+        
+        if (newSpell) {
+            document.getElementById('learned-spell').classList.remove('hidden');
+            document.getElementById('new-spell-name').textContent = this.spells[newSpell].name;
+        } else {
+            document.getElementById('learned-spell').classList.add('hidden');
+        }
+        
+        this.playSound('levelup');
+        this.showScreen('levelup-screen');
+    }
+
+    checkForNewSpell(level) {
+        const spellsByLevel = {
+            2: 'fire',
+            5: 'healMore',
+            7: 'fireMore',
+            10: 'lightning'
+        };
+        
+        const newSpell = spellsByLevel[level];
+        if (newSpell && !this.knownSpells.includes(newSpell)) {
+            this.knownSpells.push(newSpell);
+            return newSpell;
+        }
+        
+        return null;
+    }
+
+    closeLevelUp() {
+        this.updateDisplay();
+        
+        if (this.gameState.inBattle) {
+            this.endBattle();
+        } else {
+            this.showScreen('main-screen');
+        }
+    }
+
+    // アイテム・ショップシステム
+    useItem(itemId) {
+        const item = this.items[itemId];
+        
+        if (this.inventory[itemId] <= 0) return;
+        
+        if (item.effect === 'heal') {
+            if (this.player.hp >= this.player.maxHp) {
+                this.showMessage('HPは まんたんです！');
+                return;
+            }
+            
+            this.inventory[itemId]--;
+            const healAmount = item.power;
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmount);
+            
+            this.playSound('heal');
+            this.updateDisplay();
+            this.showMessage(`${item.name}を つかった！ HPが ${healAmount} かいふくした！`);
+        } else if (item.effect === 'mp') {
+            if (this.player.mp >= this.player.maxMp) {
+                this.showMessage('MPは まんたんです！');
+                return;
+            }
+            
+            this.inventory[itemId]--;
+            const mpAmount = item.power;
+            this.player.mp = Math.min(this.player.maxMp, this.player.mp + mpAmount);
+            
+            this.playSound('heal');
+            this.updateDisplay();
+            this.showMessage(`${item.name}を つかった！ MPが ${mpAmount} かいふくした！`);
+        }
+        
+        this.updateItemsDisplay();
+    }
+
+    buyItem(itemId, price) {
+        if (this.player.gold < price) {
+            this.showMessage('おかねが たりません！');
+            return;
+        }
+        
+        this.player.gold -= price;
+        
+        if (this.inventory[itemId]) {
+            this.inventory[itemId]++;
+        } else {
+            this.inventory[itemId] = 1;
+        }
+        
+        const item = this.items[itemId];
+        this.playSound('buy');
+        this.showMessage(`${item.name}を かいました！`);
+        this.updateDisplay();
+        this.updateShopDisplay();
+    }
+
+    switchShopTab(tab) {
+        document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.shop-content').forEach(c => c.classList.add('hidden'));
+        
+        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+        document.getElementById(`shop-${tab}`).classList.remove('hidden');
+        
+        if (tab === 'sell') {
+            this.updateSellItems();
+        }
+    }
+
+    updateSellItems() {
+        const sellItems = document.getElementById('sell-items');
+        sellItems.innerHTML = '';
+        
+        Object.entries(this.inventory).forEach(([itemId, count]) => {
+            if (count > 0) {
+                const item = this.items[itemId];
+                const sellItem = document.createElement('div');
+                sellItem.className = 'shop-item';
+                sellItem.innerHTML = `
+                    <div class="shop-item-info">
+                        <div class="shop-item-name">${item.name} × ${count}</div>
+                        <div class="shop-item-desc">${item.desc}</div>
+                    </div>
+                    <div class="shop-item-price">${item.sellPrice}G</div>
+                    <button class="sell-btn" data-item="${itemId}">うる</button>
+                `;
+                
+                const sellBtn = sellItem.querySelector('.sell-btn');
+                sellBtn.addEventListener('click', () => this.sellItem(itemId));
+                
+                sellItems.appendChild(sellItem);
             }
         });
-    });
-    
-    // 罠の衝突判定
-    traps.forEach(trap => {
-        if (!trap.triggered && isColliding(player, trap)) {
-            trap.triggered = true;
-            if (!player.isCrouching && !player.isInvisible) {
-                alertNearbyEnemies(trap.x, trap.y, 200, 3);
-                playSound('error');
-                gameState.perfectStealth = false;
-            }
-        }
-    });
-}
-
-// 環境更新
-function updateEnvironment() {
-    // 隠し扉の発見
-    hiddenDoors.forEach(door => {
-        if (!door.discovered && isInShadow() && isColliding(player, door)) {
-            door.discovered = true;
-            gameState.score += 500;
-            playSound('ninjutsu');
-        }
-    });
-}
-
-// 衝突判定関数
-function isColliding(rect1, rect2) {
-    return rect1.x < rect2.x + rect2.width &&
-           rect1.x + rect1.width > rect2.x &&
-           rect1.y < rect2.y + rect2.height &&
-           rect1.y + rect1.height > rect2.y;
-}
-
-// ダメージ処理
-function takeDamage() {
-    gameState.life--;
-    player.invulnerable = true;
-    player.invulnerableTime = 120; // 2秒間無敵
-    gameState.detectionLevel++;
-    
-    playSound('error');
-    
-    if (gameState.life <= 0) {
-        gameOver();
     }
-    updateUI();
-}
 
-// ゲーム進行更新
-function updateGameProgress() {
-    // 殿を倒したらクリア
-    const lordAlive = enemies.some(enemy => enemy.type === 'lord');
-    if (!lordAlive && gameState.currentFloor === 5) {
-        gameClear();
-    }
-}
-
-// 忍術関連更新
-function updateNinjutsu() {
-    if (ninjutsuCooldown > 0) {
-        ninjutsuCooldown--;
-    }
-    
-    // チャクラ自然回復（低確率）
-    if (Math.random() < 0.001 && gameState.chakra < 5) {
-        gameState.chakra++;
-    }
-    
-    // 手裏剣自然回復（低確率）
-    if (Math.random() < 0.0005 && gameState.shurikenCount < 20) {
-        gameState.shurikenCount++;
-    }
-}
-
-// UI更新
-function updateUI() {
-    document.getElementById('life-count').textContent = gameState.life;
-    document.getElementById('current-floor').textContent = gameState.currentFloor;
-    document.getElementById('score').textContent = gameState.score;
-    document.getElementById('chakra-count').textContent = gameState.chakra;
-    document.getElementById('shuriken-count').textContent = gameState.shurikenCount;
-}
-
-// ゲームオーバー
-function gameOver() {
-    gameState.screen = 'gameover';
-    document.getElementById('final-score').textContent = `スコア: ${gameState.score}`;
-    document.getElementById('gameover-screen').style.display = 'block';
-    
-    if (bgm) {
-        bgm.pause();
-    }
-}
-
-// ゲームクリア
-function gameClear() {
-    gameState.screen = 'clear';
-    
-    // ボーナス計算
-    let finalBonus = gameState.stealthBonus;
-    if (gameState.perfectStealth) {
-        finalBonus += 2000; // 完全ステルスボーナス
-    }
-    if (gameState.detectionLevel === 0) {
-        finalBonus += 1000; // 未発見ボーナス
-    }
-    
-    const totalScore = gameState.score + finalBonus;
-    gameState.stealthBonus = finalBonus;
-    
-    document.getElementById('clear-score').textContent = `最終スコア: ${totalScore}`;
-    document.getElementById('bonus-points').textContent = finalBonus;
-    document.getElementById('clear-screen').style.display = 'block';
-    
-    if (bgm) {
-        bgm.pause();
-    }
-}
-
-// レンダリングメイン
-function render() {
-    // 画面クリア
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
-    gradient.addColorStop(0, '#1a1a2e');
-    gradient.addColorStop(0.5, '#16213e');
-    gradient.addColorStop(1, '#0f3460');
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-    
-    // 各要素描画
-    drawBackground();
-    drawShadows();
-    drawHiddenDoors();
-    drawTraps();
-    drawItems();
-    drawEnemies();
-    drawPlayer();
-    drawClones();
-    drawProjectiles();
-    drawEffects();
-    drawGameUI();
-}
-
-// 背景描画
-function drawBackground() {
-    // 城の雰囲気作り
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 2;
-
-    // フロア描画
-    ctx.fillStyle = '#555';
-    floors.forEach(floor => {
-        const y = floor.y - gameState.scrollY;
-        if (y > -20 && y < canvasHeight + 20) {
-            ctx.fillRect(0, y, canvasWidth, FLOOR_HEIGHT);
-        }
-    });
-
-    // 縦線（柱）
-    for (let x = 50; x < canvasWidth; x += 100) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvasHeight);
-        ctx.stroke();
-    }
-    
-    // 月
-    ctx.fillStyle = '#f1c40f';
-    ctx.beginPath();
-    ctx.arc(canvasWidth - 50, 50, 15, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // 星（動的）
-    const starCount = 8;
-    for (let i = 0; i < starCount; i++) {
-        const x = (i * canvasWidth / starCount + Date.now() * 0.001 * (i + 1)) % canvasWidth;
-        const y = 20 + Math.sin(Date.now() * 0.002 * (i + 1)) * 30;
-        drawStar(x, y, 1 + Math.sin(Date.now() * 0.003 * (i + 1)));
-    }
-}
-
-function drawStar(x, y, size) {
-    ctx.fillStyle = '#fff';
-    ctx.globalAlpha = 0.8;
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-}
-
-// 影描画
-function drawShadows() {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    shadows.forEach(shadow => {
-        const y = shadow.y - gameState.scrollY;
-        if (y > -50 && y < canvasHeight + 50) {
-            ctx.fillRect(shadow.x, y, shadow.width, shadow.height);
-        }
-    });
-}
-
-// 隠し扉描画
-function drawHiddenDoors() {
-    hiddenDoors.forEach(door => {
-        const y = door.y - gameState.scrollY;
-        if (y > -70 && y < canvasHeight + 70) {
-            if (door.discovered || (isInShadow() && Math.hypot(door.x - player.x, door.y - player.y) < 100)) {
-                ctx.fillStyle = door.discovered ? 'rgba(139, 69, 19, 0.9)' : 'rgba(139, 69, 19, 0.5)';
-                ctx.fillRect(door.x, y, door.width, door.height);
-                
-                if (door.discovered) {
-                    ctx.fillStyle = '#654321';
-                    ctx.fillRect(door.x + 5, y + 5, door.width - 10, door.height - 10);
-                }
-            }
-        }
-    });
-}
-
-// 罠描画
-function drawTraps() {
-    traps.forEach(trap => {
-        const y = trap.y - gameState.scrollY;
-        if (y > -30 && y < canvasHeight + 30) {
-            // 忍者の目（しゃがみ状態）でのみ見える
-            if (player.isCrouching || trap.triggered) {
-                ctx.fillStyle = trap.triggered ? '#ff4444' : '#ffaa00';
-                ctx.fillRect(trap.x + 5, y + 5, trap.width - 10, trap.height - 10);
-                
-                // 罠の詳細
-                ctx.fillStyle = '#666';
-                for (let i = 0; i < 3; i++) {
-                    ctx.fillRect(trap.x + i * 8, y, 2, trap.height);
-                }
-            }
-        }
-    });
-}
-
-// アイテム描画
-function drawItems() {
-    items.forEach(item => {
-        if (item.collected) return;
+    sellItem(itemId) {
+        if (this.inventory[itemId] <= 0) return;
         
-        const y = item.y - gameState.scrollY;
-        if (y > -40 && y < canvasHeight + 40) {
-            ctx.save();
+        const item = this.items[itemId];
+        this.inventory[itemId]--;
+        this.player.gold += item.sellPrice;
+        
+        this.playSound('buy');
+        this.showMessage(`${item.name}を ${item.sellPrice}Gで うりました！`);
+        this.updateDisplay();
+        this.updateSellItems();
+        this.updateShopDisplay();
+    }
+
+    // ユーティリティ関数
+    getTotalAttack() {
+        let total = this.player.attack;
+        if (this.equipment.weapon) {
+            total += this.items[this.equipment.weapon].power;
+        }
+        if (this.equipment.accessory) {
+            total += this.items[this.equipment.accessory].power;
+        }
+        return total;
+    }
+
+    getTotalDefense() {
+        let total = this.player.defense;
+        if (this.equipment.armor) {
+            total += this.items[this.equipment.armor].power;
+        }
+        return total;
+    }
+
+    // 設定関連
+    updateVolume(value) {
+        this.settings.volume = parseInt(value);
+        document.getElementById('volume-value').textContent = value;
+        this.updateBGMVolume();
+    }
+
+    updateTextSpeed(value) {
+        this.settings.textSpeed = value;
+    }
+
+    updateAutoSave(value) {
+        this.settings.autoSave = value;
+    }
+
+    // 音響システム
+    playSound(type) {
+        if (this.settings.volume === 0) return;
+        
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
             
-            // 光る効果
-            const shimmerAlpha = 0.8 + Math.sin(item.shimmer) * 0.2;
-            ctx.globalAlpha = shimmerAlpha;
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
             
-            ctx.translate(item.x + item.width/2, y + item.height/2);
-            ctx.rotate(Math.sin(item.shimmer * 0.5) * 0.2);
+            let frequency, duration, waveType = 'square';
             
-            switch(item.type) {
-                case 'scroll':
-                    ctx.fillStyle = '#feca57';
-                    ctx.fillRect(-12, -12, 24, 24);
-                    ctx.fillStyle = '#222';
-                    ctx.font = '12px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('巻', 0, 4);
+            switch (type) {
+                case 'attack':
+                    frequency = 200;
+                    duration = 0.1;
                     break;
-                case 'poison_shuriken':
-                    ctx.fillStyle = '#2ecc71';
-                    drawShurikenShape();
-                    ctx.fillStyle = '#000';
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-                    ctx.fill();
+                case 'damage':
+                    frequency = 150;
+                    duration = 0.2;
+                    waveType = 'sawtooth';
                     break;
-                case 'smoke_bomb':
-                    ctx.fillStyle = '#95a5a6';
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 12, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#34495e';
-                    ctx.beginPath();
-                    ctx.arc(0, -5, 3, 0, Math.PI * 2);
-                    ctx.fill();
+                case 'heal':
+                    frequency = 400;
+                    duration = 0.3;
+                    waveType = 'sine';
                     break;
-                case 'chakra_pill':
-                    ctx.fillStyle = '#e74c3c';
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 10, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#fff';
-                    ctx.font = '10px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('気', 0, 3);
+                case 'magic':
+                    frequency = 600;
+                    duration = 0.4;
+                    waveType = 'triangle';
                     break;
+                case 'victory':
+                    frequency = 800;
+                    duration = 0.5;
+                    waveType = 'sine';
+                    break;
+                case 'levelup':
+                    frequency = 1000;
+                    duration = 0.8;
+                    waveType = 'sine';
+                    break;
+                case 'buy':
+                    frequency = 500;
+                    duration = 0.2;
+                    break;
+                case 'move':
+                    frequency = 300;
+                    duration = 0.1;
+                    break;
+                default:
+                    return;
             }
-            ctx.restore();
-        }
-    });
-}
-
-function drawShurikenShape() {
-    ctx.beginPath();
-    ctx.moveTo(0, -10);
-    ctx.lineTo(3, -3);
-    ctx.lineTo(10, 0);
-    ctx.lineTo(3, 3);
-    ctx.lineTo(0, 10);
-    ctx.lineTo(-3, 3);
-    ctx.lineTo(-10, 0);
-    ctx.lineTo(-3, -3);
-    ctx.closePath();
-    ctx.fill();
-}
-
-// 敵描画
-function drawEnemies() {
-    enemies.forEach(enemy => {
-        const y = enemy.y - gameState.scrollY;
-        if (y > -80 && y < canvasHeight + 80) {
-            drawEnemy(enemy, y);
-        }
-    });
-}
-
-function drawEnemy(enemy, screenY) {
-    ctx.save();
-    ctx.translate(enemy.x, screenY);
-
-    // 警戒レベルに応じた表示効果
-    const alertColor = enemy.alertLevel > 3 ? '#ff4444' : 
-                       enemy.alertLevel > 1 ? '#ffaa44' : '#ffffff';
-    
-    // 気絶状態の表示
-    if (enemy.stunTime > 0) {
-        ctx.globalAlpha = 0.7;
-        ctx.fillStyle = '#666666';
-    }
-
-    if (enemy.type === 'samurai') {
-        drawSamurai(alertColor);
-    } else if (enemy.type === 'archer') {
-        drawArcher(alertColor);
-    } else if (enemy.type === 'spearman') {
-        drawSpearman(alertColor);
-    } else if (enemy.type === 'shieldman') {
-        drawShieldman(alertColor);
-    } else if (enemy.type === 'lord') {
-        drawLord(enemy);
-    }
-
-    // 警戒レベル表示
-    if (enemy.alertLevel > 0) {
-        ctx.fillStyle = `rgba(255, ${255 - enemy.alertLevel * 40}, 0, ${enemy.alertLevel / 5})`;
-        ctx.fillRect(-5, -15, enemy.width + 10, 3);
-    }
-
-    ctx.restore();
-}
-
-function drawSamurai(alertColor) {
-    // 体
-    ctx.fillStyle = '#cc3333';
-    ctx.fillRect(15, 20, 15, 18);
-    
-    // 頭
-    ctx.fillStyle = '#ffdbab';
-    ctx.beginPath();
-    ctx.arc(22.5, 15, 7, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // ちょんまげ
-    ctx.fillStyle = '#333333';
-    ctx.beginPath();
-    ctx.ellipse(22.5, 10, 4, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(21, 5, 3, 8);
-    
-    // 刀
-    ctx.strokeStyle = alertColor;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(35, 15);
-    ctx.lineTo(35, 30);
-    ctx.stroke();
-    
-    // 刀の柄
-    ctx.fillStyle = '#8b4513';
-    ctx.fillRect(33, 12, 4, 5);
-}
-
-function drawArcher(alertColor) {
-    // 体
-    ctx.fillStyle = '#3366cc';
-    ctx.fillRect(14, 18, 14, 17);
-    
-    // 頭
-    ctx.fillStyle = '#ffdbab';
-    ctx.beginPath();
-    ctx.arc(21, 13, 6, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // 弓
-    ctx.strokeStyle = alertColor;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(8, 15, 7, -Math.PI/3, Math.PI/3, false);
-    ctx.stroke();
-    
-    // 弦
-    ctx.strokeStyle = '#333333';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(5, 10);
-    ctx.lineTo(5, 20);
-    ctx.stroke();
-}
-
-function drawSpearman(alertColor) {
-    // 体
-    ctx.fillStyle = '#228b22';
-    ctx.fillRect(14, 20, 17, 18);
-
-    // 頭
-    ctx.fillStyle = '#ffdbab';
-    ctx.beginPath();
-    ctx.arc(22.5, 15, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 槍の柄
-    ctx.strokeStyle = alertColor;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(35, 15);
-    ctx.lineTo(45, 5);
-    ctx.stroke();
-
-    // 槍の穂先
-    ctx.strokeStyle = '#c0c0c0';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(45, 5);
-    ctx.lineTo(48, 2);
-    ctx.moveTo(45, 5);
-    ctx.lineTo(48, 8);
-    ctx.stroke();
-}
-
-function drawShieldman(alertColor) {
-    // 体
-    ctx.fillStyle = '#555555';
-    ctx.fillRect(14, 20, 17, 18);
-
-    // 頭
-    ctx.fillStyle = '#ffdbab';
-    ctx.beginPath();
-    ctx.arc(22.5, 15, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 盾
-    ctx.fillStyle = alertColor;
-    ctx.globalAlpha = 0.8;
-    ctx.beginPath();
-    ctx.arc(35, 28, 8, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(35, 20);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-}
-
-function drawLord(enemy) {
-    // 殿の体（大きめ）
-    ctx.fillStyle = '#6b46c1';
-    ctx.beginPath();
-    ctx.ellipse(40, 45, 35, 12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.fillStyle = '#7c3aed';
-    ctx.beginPath();
-    ctx.ellipse(40, 35, 25, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // 頭
-    ctx.fillStyle = '#ffdbab';
-    ctx.beginPath();
-    ctx.arc(25, 25, 12, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // 髪
-    ctx.fillStyle = '#333333';
-    ctx.beginPath();
-    ctx.arc(20, 18, 8, 0, Math.PI);
-    ctx.fill();
-    
-    // 状態表示
-    if (!enemy.awake) {
-        ctx.fillStyle = '#666666';
-        ctx.font = '14px Arial';
-        ctx.fillText('ZZZ', 50, 15);
-        
-        // 寝息エフェクト
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = '#ffffff';
-        for (let i = 0; i < 3; i++) {
-            ctx.beginPath();
-            ctx.arc(55 + i * 8, 10 + Math.sin(Date.now() * 0.01 + i) * 3, 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-    } else {
-        ctx.fillStyle = '#ff0000';
-        ctx.font = '12px Arial';
-        ctx.fillText('起きた！', 10, 10);
-        
-        // 怒りエフェクト
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 4; i++) {
-            const angle = (Date.now() * 0.01 + i * Math.PI / 2) % (Math.PI * 2);
-            ctx.beginPath();
-            ctx.arc(25, 25, 15 + Math.sin(angle) * 3, 0, Math.PI * 2);
-            ctx.stroke();
+            
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            oscillator.type = waveType;
+            
+            const volume = (this.settings.volume / 100) * 0.1;
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + duration);
+        } catch (error) {
+            console.log('音声再生エラー:', error);
         }
     }
-    
-    // 体力表示
-    if (enemy.health < enemy.maxHealth) {
-        ctx.fillStyle = '#ff0000';
-        ctx.font = '10px Arial';
-        ctx.fillText(`HP: ${enemy.health}/${enemy.maxHealth}`, 5, 50);
-    }
-}
 
-// プレイヤー描画
-function drawPlayer() {
-    const screenY = player.y - gameState.scrollY;
-    if (screenY < -60 || screenY > canvasHeight + 60) return;
-    
-    ctx.save();
-    
-    // 各種状態エフェクト
-    if (player.invulnerable && Math.floor(player.invulnerableTime / 5) % 2) {
-        ctx.globalAlpha = 0.5;
+    playBGM(type) {
+        // 実際の実装では音楽ファイルを再生
+        console.log(`BGM: ${type} を再生`);
     }
-    if (player.isInvisible) {
-        ctx.globalAlpha = 0.3;
-    }
-    if (player.isHiding && player.shadowBlend) {
-        ctx.globalAlpha = 0.6;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.fillRect(player.x - 5, screenY - 5, player.width + 10, player.height + 10);
-    }
-    
-    // 向きに応じて反転
-    const scale = player.isCrouching ? 1.0 : 1.2;
-    if (player.direction === -1) {
-        ctx.translate(player.x + player.width, screenY);
-        ctx.scale(-scale, scale);
-    } else {
-        ctx.translate(player.x, screenY);
-        ctx.scale(scale, scale);
-    }
-    
-    // 忍者の体
-    ctx.fillStyle = '#1a1a1a';
-    if (player.isCrouching) {
-        ctx.fillRect(12, 25, 16, 10);
-    } else {
-        ctx.fillRect(12, 15, 16, 20);
-    }
-    
-    // 忍者の頭
-    ctx.beginPath();
-    ctx.arc(20, 12, 8, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // 目（光る）
-    ctx.fillStyle = player.isInvisible ? '#00ffff' : '#ffffff';
-    ctx.fillRect(16, 10, 3, 2);
-    ctx.fillRect(21, 10, 3, 2);
-    
-    ctx.restore();
-}
 
-// 分身描画
-function drawClones() {
-    player.clones.forEach(clone => {
-        const screenY = clone.y - gameState.scrollY;
-        if (screenY < -60 || screenY > canvasHeight + 60) return;
-        
-        ctx.save();
-        ctx.globalAlpha = clone.alpha;
-        ctx.translate(clone.x, screenY);
-        
-        if (clone.direction === -1) {
-            ctx.scale(-1, 1);
+    updateBGMVolume() {
+        // BGMボリューム調整
+        const volume = this.settings.volume / 100;
+        document.querySelectorAll('audio').forEach(audio => {
+            audio.volume = volume;
+        });
+    }
+
+    // バイブレーション（スマホ対応）
+    vibrate(pattern) {
+        if (navigator.vibrate) {
+            navigator.vibrate(pattern);
         }
-        
-        // 分身の色（少し青っぽく）
-        ctx.fillStyle = '#3a3a5a';
-        ctx.fillRect(12, 15, 16, 20);
-        ctx.beginPath();
-        ctx.arc(20, 12, 8, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // 分身の目（青く光る）
-        ctx.fillStyle = '#4ecdc4';
-        ctx.fillRect(16, 10, 3, 2);
-        ctx.fillRect(21, 10, 3, 2);
-        
-        ctx.restore();
-    });
-}
-
-// 発射物描画
-function drawProjectiles() {
-    // プレイヤーの手裏剣
-    projectiles.forEach(projectile => {
-        const screenY = projectile.y - gameState.scrollY;
-        if (screenY < -30 || screenY > canvasHeight + 30) return;
-        
-        ctx.save();
-        ctx.translate(projectile.x + projectile.width/2, screenY + projectile.height/2);
-        ctx.rotate(projectile.spin);
-        
-        // 手裏剣の輝き
-        ctx.shadowColor = '#c0c0c0';
-        ctx.shadowBlur = 5;
-        
-        ctx.fillStyle = '#c0c0c0';
-        drawShurikenShape();
-        
-        ctx.fillStyle = '#666666';
-        ctx.beginPath();
-        ctx.arc(0, 0, 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.restore();
-    });
-    
-    // 敵の矢
-    enemyProjectiles.forEach(arrow => {
-        const screenY = arrow.y - gameState.scrollY;
-        if (screenY < -30 || screenY > canvasHeight + 30) return;
-        
-        ctx.save();
-        ctx.translate(arrow.x, screenY);
-        ctx.rotate(Math.atan2(arrow.velocityY, arrow.velocityX));
-        
-        // 矢の軸
-        ctx.fillStyle = '#8b4513';
-        ctx.fillRect(0, -1, 25, 2);
-
-        // 矢じり
-        ctx.fillStyle = '#666666';
-        ctx.beginPath();
-        ctx.moveTo(25, -3);
-        ctx.lineTo(30, 0);
-        ctx.lineTo(25, 3);
-        ctx.closePath();
-        ctx.fill();
-        
-        // 矢羽
-        ctx.fillStyle = '#654321';
-        ctx.beginPath();
-        ctx.moveTo(0, -2);
-        ctx.lineTo(-5, -4);
-        ctx.lineTo(-5, 4);
-        ctx.lineTo(0, 2);
-        ctx.closePath();
-        ctx.fill();
-        
-        ctx.restore();
-    });
-}
-
-// エフェクト描画
-function drawEffects() {
-    const screenY = player.y - gameState.scrollY;
-    
-    // 攻撃エフェクト
-    if (player.isAttacking) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillRect(player.x - 10, screenY - 10, player.width + 20, player.height + 20);
     }
 
-    // ジャンプエフェクト
-    if (player.isJumping) {
-        ctx.strokeStyle = 'rgba(255, 107, 107, 0.6)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(player.x + player.width/2, screenY + player.height + 5, 15, 0, Math.PI * 2);
-        ctx.stroke();
-    }
-
-    // 隠れ状態エフェクト
-    if (player.isHiding && isInShadow()) {
-        ctx.strokeStyle = 'rgba(78, 205, 196, 0.8)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.strokeRect(player.x - 5, screenY - 5, player.width + 10, player.height + 10);
-        ctx.setLineDash([]);
-    }
-
-    // 煙エフェクト
-    if (player.smokeTime > 0) {
-        drawSmokeEffect();
-    }
-    
-    // 透明エフェクト
-    if (player.isInvisible) {
-        drawInvisibleEffect();
-    }
-}
-
-function drawSmokeEffect() {
-    ctx.save();
-    ctx.globalAlpha = 0.6;
-    
-    const smokeRadius = (120 - player.smokeTime) * 2;
-    const particleCount = 12;
-    
-    for (let i = 0; i < particleCount; i++) {
-        const angle = (Date.now() * 0.005 + i * (Math.PI * 2 / particleCount)) % (Math.PI * 2);
-        const x = player.x + player.width/2 + Math.cos(angle) * smokeRadius;
-        const y = player.y + player.height/2 + Math.sin(angle) * (smokeRadius * 0.6) - gameState.scrollY;
+    // セーブ・ロードシステム
+    saveGame() {
+        const saveData = {
+            player: this.player,
+            inventory: this.inventory,
+            equipment: this.equipment,
+            knownSpells: this.knownSpells,
+            gameState: this.gameState,
+            settings: this.settings,
+            version: '1.0'
+        };
         
-        const size = 8 + Math.sin(Date.now() * 0.01 + i) * 3;
-        
-        ctx.fillStyle = '#95a5a6';
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    ctx.restore();
-}
-
-function drawInvisibleEffect() {
-    const screenY = player.y - gameState.scrollY;
-    
-    ctx.save();
-    ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    
-    // 透明オーラ
-    for (let i = 0; i < 3; i++) {
-        const radius = 20 + i * 10 + Math.sin(Date.now() * 0.01 + i) * 5;
-        ctx.beginPath();
-        ctx.arc(player.x + player.width/2, screenY + player.height/2, radius, 0, Math.PI * 2);
-        ctx.stroke();
-    }
-    
-    ctx.restore();
-}
-
-// ゲーム内UI描画
-function drawGameUI() {
-    // 忍術クールダウン表示
-    if (ninjutsuCooldown > 0) {
-        const barWidth = 200;
-        const barHeight = 20;
-        const x = 10;
-        const y = canvasHeight - 80;
-        
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(x, y, barWidth, barHeight);
-        
-        const progress = (ninjutsu[currentNinjutsu].cooldown - ninjutsuCooldown) / ninjutsu[currentNinjutsu].cooldown;
-        ctx.fillStyle = '#4ecdc4';
-        ctx.fillRect(x, y, barWidth * progress, barHeight);
-        
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '12px Arial';
-        ctx.fillText(`${ninjutsu[currentNinjutsu].name} クールダウン中...`, x + 5, y + 14);
-    }
-
-    // 現在の忍術表示
-    const jutsuBarY = canvasHeight - 50;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(10, jutsuBarY, 180, 25);
-    
-    ctx.fillStyle = '#4ecdc4';
-    ctx.font = '12px Arial';
-    ctx.fillText(`忍術: ${ninjutsu[currentNinjutsu].name}`, 15, jutsuBarY + 16);
-    
-    // コスト表示
-    ctx.fillStyle = gameState.chakra >= ninjutsu[currentNinjutsu].cost ? '#2ecc71' : '#e74c3c';
-    ctx.fillText(`(${ninjutsu[currentNinjutsu].cost})`, 140, jutsuBarY + 16);
-
-    // 状態表示
-    const statusY = canvasHeight - 25;
-    let statusText = '';
-    if (player.isInvisible) statusText = '透明中';
-    else if (player.isHiding) statusText = '隠れ中';
-    else if (player.isCrouching) statusText = 'しゃがみ中';
-    else if (isInShadow()) statusText = '影の中';
-    
-    if (statusText) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(10, statusY, 100, 20);
-        
-        ctx.fillStyle = '#feca57';
-        ctx.font = '11px Arial';
-        ctx.fillText(statusText, 15, statusY + 14);
-    }
-    
-    // 警戒度メーター
-    const alertEnemies = enemies.filter(e => e.alertLevel > 1).length;
-    if (alertEnemies > 0) {
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
-        ctx.fillRect(canvasWidth - 120, 10, 100, 15);
-        
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '11px Arial';
-        ctx.fillText(`警戒中: ${alertEnemies}体`, canvasWidth - 115, 21);
-    }
-}
-
-// ページ読み込み時の初期化
-document.addEventListener('DOMContentLoaded', function() {
-    bgm = document.getElementById('bgm');
-
-    // モバイル判定
-    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // コントローラーは常に表示（小学生向け）
-    document.getElementById('mobile-controller').style.display = 'block';
-    
-    // タッチイベントのデフォルト動作を防ぐ
-    document.addEventListener('touchstart', function(e) {
-        if (e.target.classList.contains('control-btn') || e.target.classList.contains('ninjutsu-btn')) {
-            e.preventDefault();
+        try {
+            localStorage.setItem('advancedRPGSave', JSON.stringify(saveData));
+            this.showMessage('ゲームを セーブしました！');
+        } catch (error) {
+            this.showMessage('セーブに しっぱいしました...');
         }
-    }, { passive: false });
-    
-    document.addEventListener('touchmove', function(e) {
-        if (e.target.closest('#mobile-controller')) {
-            e.preventDefault();
+    }
+
+    loadGame() {
+        try {
+            const saveData = localStorage.getItem('advancedRPGSave');
+            if (!saveData) return false;
+            
+            const data = JSON.parse(saveData);
+            
+            this.player = { ...this.player, ...data.player };
+            this.inventory = { ...this.inventory, ...data.inventory };
+            this.equipment = { ...this.equipment, ...data.equipment };
+            this.knownSpells = data.knownSpells || ['heal'];
+            this.gameState = { ...this.gameState, ...data.gameState };
+            this.settings = { ...this.settings, ...data.settings };
+            
+            // ゲーム開始時間を調整
+            this.gameState.gameStartTime = Date.now() - (this.gameState.playTime * 1000);
+            
+            return true;
+        } catch (error) {
+            console.log('ロードエラー:', error);
+            return false;
         }
-    }, { passive: false });
+    }
+
+    continueFromGameOver() {
+        // ゲームオーバーから復活
+        this.player.hp = Math.floor(this.player.maxHp / 2);
+        this.player.gold = Math.floor(this.player.gold / 2);
+        this.gameState.currentLocation = 'town';
+        
+        this.showScreen('main-screen');
+        this.playBGM('town');
+        this.updateDisplay();
+        this.showMessage('きがついた... ここは まちの しんでんだ...');
+    }
+
+    updateVictoryStats() {
+        document.getElementById('final-level').textContent = this.player.level;
+        
+        const hours = Math.floor(this.gameState.playTime / 3600);
+        const minutes = Math.floor((this.gameState.playTime % 3600) / 60);
+        document.getElementById('play-time').textContent = `${hours}:${minutes.toString().padStart(2, '0')}`;
+        
+        document.getElementById('defeated-enemies').textContent = this.gameState.defeatedEnemies;
+    }
+
+    // キーボード操作
+    handleKeyboard(event) {
+        if (this.isTyping) return;
+        
+        const key = event.key.toLowerCase();
+        
+        switch (this.currentScreen) {
+            case 'main-screen':
+                this.handleMainScreenKeys(key);
+                break;
+            case 'battle-screen':
+                this.handleBattleKeys(key);
+                break;
+            case 'menu-screen':
+                this.handleMenuKeys(key);
+                break;
+        }
+    }
+
+    handleMainScreenKeys(key) {
+        switch (key) {
+            case 'enter':
+            case ' ':
+                this.performAction();
+                break;
+            case 'escape':
+                this.showScreen('menu-screen');
+                break;
+            case 'arrowup':
+            case 'w':
+                this.movePlayer('up');
+                break;
+            case 'arrowdown':
+            case 's':
+                this.movePlayer('down');
+                break;
+            case 'arrowleft':
+            case 'a':
+                this.movePlayer('left');
+                break;
+            case 'arrowright':
+            case 'd':
+                this.movePlayer('right');
+                break;
+        }
+    }
+
+    handleBattleKeys(key) {
+        if (this.gameState.battleTurn !== 'player') return;
+        
+        switch (key) {
+            case '1':
+                this.battleAttack();
+                break;
+            case '2':
+                this.showBattleMagic();
+                break;
+            case '3':
+                this.showBattleItems();
+                break;
+            case '4':
+                this.battleRun();
+                break;
+            case 'escape':
+                this.hideBattleSubmenus();
+                break;
+        }
+    }
+
+    handleMenuKeys(key) {
+        switch (key) {
+            case 'escape':
+                this.showScreen('main-screen');
+                break;
+            case '1':
+                this.showScreen('status-screen');
+                break;
+            case '2':
+                this.showScreen('items-screen');
+                break;
+        }
+    }
+
+    // タッチ操作
+    handleTouch(event) {
+        // ダブルタップズーム防止
+        if (event.touches.length > 1) {
+            event.preventDefault();
+        }
+    }
+
+    // メニュー機能
+    showMagicMenu() {
+        // 魔法メニューの表示（非戦闘時）
+        this.showMessage('つかいたい じゅもんを えらんでください。');
+        // 実装は省略（戦闘時と同様の処理）
+    }
+
+    showEquipMenu() {
+        // 装備メニューの表示
+        this.showMessage('そうびを へんこうできます。');
+        // 実装は省略
+    }
+
+    // デバッグ機能
+    debug() {
+        this.player.level = 20;
+        this.player.hp = this.player.maxHp = 999;
+        this.player.mp = this.player.maxMp = 999;
+        this.player.gold = 9999;
+        this.player.attack = 100;
+        this.player.defense = 100;
+        
+        Object.keys(this.items).forEach(itemId => {
+            this.inventory[itemId] = 99;
+        });
+        
+        this.knownSpells = Object.keys(this.spells);
+        
+        this.updateDisplay();
+        this.showMessage('デバッグモード: 最強ステータスになりました！');
+    }
+}
+
+// ゲーム初期化
+let game;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // ローディング画面表示
+    document.getElementById('loading-screen').classList.remove('hidden');
     
-    // ゲーム初期化
-    initGame();
+    // プログレスバーアニメーション
+    const progressBar = document.getElementById('loading-progress');
+    let progress = 0;
+    
+    const loadingInterval = setInterval(() => {
+        progress += Math.random() * 15 + 5;
+        if (progress >= 100) {
+            progress = 100;
+            clearInterval(loadingInterval);
+            
+            // ゲーム開始
+            setTimeout(() => {
+                document.getElementById('loading-screen').classList.add('hidden');
+                game = new AdvancedRPGGame();
+            }, 500);
+        }
+        progressBar.style.width = `${progress}%`;
+    }, 200);
 });
 
-// デバッグ用関数
-function debugInfo() {
-    console.log('=== デバッグ情報 ===');
-    console.log('Player:', player);
-    console.log('Enemies:', enemies.length);
-    console.log('GameState:', gameState);
-    console.log('Shadows:', shadows.length);
-    console.log('IsInShadow:', isInShadow());
-}
-
-// チート機能（開発・テスト用）
-function enableGodMode() {
-    if (confirm('ゴッドモードを有効にしますか？（デバッグ用）')) {
-        gameState.life = 99;
-        gameState.chakra = 99;
-        gameState.shurikenCount = 99;
-        player.invulnerable = true;
-        player.isInvisible = true;
-        updateUI();
-        console.log('ゴッドモード有効');
+// ページ終了時の自動セーブ
+window.addEventListener('beforeunload', () => {
+    if (game && game.settings.autoSave) {
+        game.saveGame();
     }
-}
+});
 
-// パフォーマンス最適化用
-function optimizePerformance() {
-    // 画面外の敵を一時的に非アクティブ化
-    enemies.forEach(enemy => {
-        const dist = Math.abs(enemy.y - (player.y - gameState.scrollY));
-        enemy.active = dist < canvasHeight + 100;
+// 画面の向き変更対応
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        window.scrollTo(0, 0);
+    }, 100);
+});
+
+// PWA対応（Service Worker）
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+                console.log('SW registered: ', registration);
+            })
+            .catch(registrationError => {
+                console.log('SW registration failed: ', registrationError);
+            });
     });
-    
-    // 古い発射物を削除
-    if (projectiles.length > 50) {
-        projectiles = projectiles.slice(-30);
-    }
-    if (enemyProjectiles.length > 30) {
-        enemyProjectiles = enemyProjectiles.slice(-20);
-    }
 }
 
-// ゲーム一時停止/再開
-function togglePause() {
-    gameState.paused = !gameState.paused;
-    console.log('ゲーム', gameState.paused ? '一時停止' : '再開');
-}
-
-// コンソールからの操作用（デバッグ）
-window.gameDebug = {
-    debugInfo,
-    enableGodMode,
-    togglePause,
-    player,
-    gameState,
-    enemies
+// コンソールからのデバッグコマンド
+window.debugRPG = () => {
+    if (game) {
+        game.debug();
+    }
 };
+
+// エクスポート（モジュール対応）
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = AdvancedRPGGame;
+}
