@@ -106,52 +106,250 @@
     
     #controls {
       position: fixed;
-      bottom: 20px;
+      bottom: clamp(12px, 4vh, 24px);
       left: 50%;
       transform: translateX(-50%);
       display: none;
-      gap: 20px;
+      width: min(92vw, 540px);
       z-index: 1000;
-      background: rgba(0,0,0,0.8);
-      padding: 20px;
-      border-radius: 25px;
-      backdrop-filter: blur(10px);
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(2, 1fr);
-      width: 240px;
-      height: 160px;
     }
-    
+
+    .famicom-controller {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: clamp(12px, 4vw, 28px);
+      padding: clamp(16px, 4vw, 24px);
+      border-radius: 26px;
+      background: linear-gradient(135deg, #8b1a1a, #5c0909);
+      border: 4px solid #2a0303;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      color: #f7e5a6;
+      overflow: hidden;
+    }
+
+    .famicom-controller::before {
+      content: "";
+      position: absolute;
+      inset: clamp(10px, 3vw, 16px);
+      border-radius: 18px;
+      background: linear-gradient(135deg, #d8b76c, #a5792a);
+      opacity: 0.95;
+      pointer-events: none;
+    }
+
+    .famicom-controller > * {
+      position: relative;
+      z-index: 1;
+    }
+
     .control-btn {
-      width: 70px;
-      height: 70px;
-      border-radius: 50%;
-      background: linear-gradient(45deg, #667eea, #764ba2);
       border: none;
-      color: white;
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      outline: none;
+      background: none;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-weight: bold;
+      color: #f7e5a6;
+      cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: manipulation;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
-    
-    .control-btn:active {
-      transform: scale(0.9);
-      background: linear-gradient(45deg, #764ba2, #667eea);
-      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.5);
+
+    .control-btn:active,
+    .control-btn.pressed {
+      transform: translateY(2px);
     }
-    
-    #leftBtn { grid-column: 1; grid-row: 2; }
-    #rightBtn { grid-column: 3; grid-row: 2; }
-    #jumpBtn { grid-column: 2; grid-row: 1; }
-    #crouchBtn { grid-column: 2; grid-row: 2; }
+
+    .dpad {
+      position: relative;
+      width: clamp(105px, 30vw, 190px);
+      aspect-ratio: 1;
+      padding: clamp(10px, 2.5vw, 18px);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: clamp(4px, 1vw, 8px);
+      background: #1a1a1a;
+      border-radius: 22px;
+      box-shadow: inset 0 10px 16px rgba(0, 0, 0, 0.7), inset 0 -6px 12px rgba(255, 255, 255, 0.08);
+    }
+
+    .dpad::before,
+    .dpad::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(180deg, #3f3f3f, #090909);
+      border-radius: 14px;
+      box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.1), inset 0 -4px 6px rgba(0, 0, 0, 0.7);
+    }
+
+    .dpad::before {
+      width: 36%;
+      height: 100%;
+    }
+
+    .dpad::after {
+      width: 100%;
+      height: 36%;
+    }
+
+    .dpad-btn {
+      position: relative;
+      z-index: 2;
+      border-radius: 14px;
+    }
+
+    .dpad-btn:active,
+    .dpad-btn.pressed {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .dpad-btn.up { grid-area: 1 / 2; }
+    .dpad-btn.left { grid-area: 2 / 1; }
+    .dpad-btn.right { grid-area: 2 / 3; }
+    .dpad-btn.down { grid-area: 3 / 2; }
+
+    .dpad-btn::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 0;
+      height: 0;
+      border-style: solid;
+    }
+
+    .dpad-btn.up::after {
+      border-width: clamp(10px, 2.6vw, 14px) clamp(8px, 2vw, 12px) 0 clamp(8px, 2vw, 12px);
+      border-color: #d7d7d7 transparent transparent transparent;
+    }
+
+    .dpad-btn.down::after {
+      border-width: 0 clamp(8px, 2vw, 12px) clamp(10px, 2.6vw, 14px) clamp(8px, 2vw, 12px);
+      border-color: transparent transparent #d7d7d7 transparent;
+    }
+
+    .dpad-btn.left::after {
+      border-width: clamp(8px, 2vw, 12px) 0 clamp(8px, 2vw, 12px) clamp(10px, 2.6vw, 14px);
+      border-color: transparent transparent transparent #d7d7d7;
+    }
+
+    .dpad-btn.right::after {
+      border-width: clamp(8px, 2vw, 12px) clamp(10px, 2.6vw, 14px) clamp(8px, 2vw, 12px) 0;
+      border-color: transparent #d7d7d7 transparent transparent;
+    }
+
+    .dpad-center {
+      grid-area: 2 / 2;
+      position: relative;
+      pointer-events: none;
+    }
+
+    .dpad-center::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 40%;
+      height: 40%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #2c2c2c, #050505);
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.15), inset 0 -3px 5px rgba(0, 0, 0, 0.8);
+    }
+
+    .dpad-corner {
+      pointer-events: none;
+    }
+
+    .center-buttons {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(8px, 2vw, 12px);
+      text-transform: uppercase;
+      letter-spacing: 0;
+      font-weight: bold;
+      color: #4a1b1b;
+      text-shadow: 0 2px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .controller-logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(2px, 0.6vw, 4px);
+      font-size: clamp(10px, 2.8vw, 16px);
+      letter-spacing: clamp(2px, 0.8vw, 4px);
+      line-height: 1;
+    }
+
+    .controller-logo span {
+      display: block;
+    }
+
+    .start-select {
+      display: flex;
+      gap: clamp(10px, 2.5vw, 16px);
+    }
+
+    .famicom-button {
+      padding: clamp(5px, 1.6vw, 8px) clamp(10px, 2.8vw, 16px);
+      border-radius: 20px;
+      background: linear-gradient(180deg, #3a3a3a, #0b0b0b);
+      border: 2px solid #000;
+      color: #f7e5a6;
+      font-size: clamp(9px, 2.2vw, 12px);
+      letter-spacing: clamp(1px, 0.5vw, 2px);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.2), inset 0 -2px 4px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
+    }
+
+    .action-buttons {
+      display: flex;
+      align-items: center;
+      gap: clamp(14px, 4vw, 26px);
+    }
+
+    .action-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(6px, 1.5vw, 10px);
+    }
+
+    .action-btn {
+      width: clamp(50px, 13vw, 74px);
+      height: clamp(50px, 13vw, 74px);
+      border-radius: 50%;
+      border: 4px solid #7a0b0b;
+      background: radial-gradient(circle at 30% 30%, #ffb3b3, #b31217 65%, #6b0606 100%);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4), inset 0 3px 4px rgba(255, 255, 255, 0.2), inset 0 -6px 8px rgba(0, 0, 0, 0.6);
+      color: transparent;
+    }
+
+    .action-btn:active,
+    .action-btn.pressed {
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 2px 3px rgba(0, 0, 0, 0.5);
+    }
+
+    .action-label {
+      font-size: clamp(12px, 3vw, 16px);
+      letter-spacing: 4px;
+      font-weight: bold;
+      color: #4a1b1b;
+      text-shadow: 0 2px 0 rgba(255, 255, 255, 0.4);
+    }
     
     #gameInfo {
       position: absolute;
@@ -192,18 +390,37 @@
         height: 100vh;
         height: -webkit-fill-available;
       }
-      
+
       canvas {
         max-width: 100vw;
         max-height: 70vh;
       }
-      
+
       #controls {
-        display: grid;
+        display: block;
       }
-      
+
       #overlay {
         padding: 20px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .famicom-controller {
+        flex-direction: column;
+        align-items: center;
+        gap: clamp(16px, 5vw, 24px);
+      }
+
+      .action-buttons {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #controls {
+        width: min(96vw, 500px);
       }
     }
     
@@ -253,10 +470,39 @@
   </div>
 
   <div id="controls">
-    <div class="control-btn" id="leftBtn" data-action="left">←</div>
-    <div class="control-btn" id="rightBtn" data-action="right">→</div>
-    <div class="control-btn" id="jumpBtn" data-action="jump">↑</div>
-    <div class="control-btn" id="crouchBtn" data-action="crouch">↓</div>
+    <div class="famicom-controller">
+      <div class="dpad">
+        <div class="dpad-corner"></div>
+        <button type="button" class="control-btn dpad-btn up" data-action="jump" aria-label="ジャンプ（上ボタン）"></button>
+        <div class="dpad-corner"></div>
+        <button type="button" class="control-btn dpad-btn left" data-action="left" aria-label="左に移動"></button>
+        <div class="dpad-center"></div>
+        <button type="button" class="control-btn dpad-btn right" data-action="right" aria-label="右に移動"></button>
+        <div class="dpad-corner"></div>
+        <button type="button" class="control-btn dpad-btn down" data-action="crouch" aria-label="しゃがむ"></button>
+        <div class="dpad-corner"></div>
+      </div>
+      <div class="center-buttons">
+        <div class="controller-logo">
+          <span>FAMILY</span>
+          <span>COMPUTER</span>
+        </div>
+        <div class="start-select">
+          <div class="famicom-button">SELECT</div>
+          <div class="famicom-button">START</div>
+        </div>
+      </div>
+      <div class="action-buttons">
+        <div class="action-button">
+          <button type="button" class="control-btn action-btn b-btn" data-action="jump" aria-label="ジャンプ（Bボタン）"></button>
+          <span class="action-label">B</span>
+        </div>
+        <div class="action-button">
+          <button type="button" class="control-btn action-btn a-btn" data-action="jump" aria-label="ジャンプ（Aボタン）"></button>
+          <span class="action-label">A</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -382,14 +628,16 @@
     }
 
     function setupTouchControls() {
-      const controls = document.querySelectorAll('.control-btn');
+      const controls = document.querySelectorAll('[data-action]');
       controls.forEach(btn => {
         const action = btn.dataset.action;
-        
-        btn.addEventListener('touchstart', (e) => {
+        if (!action) return;
+
+        const press = (e) => {
           e.preventDefault();
           touches[action] = true;
-          
+          btn.classList.add('pressed');
+
           if (action === 'jump' && player.onGround && started) {
             player.vy = -13;
             player.onGround = false;
@@ -397,18 +645,23 @@
           } else if (action === 'crouch') {
             player.crouching = true;
           }
-        }, {passive: false});
-        
-        btn.addEventListener('touchend', (e) => {
-          e.preventDefault();
+        };
+
+        const release = (e) => {
+          if (e) e.preventDefault();
           touches[action] = false;
-          
+          btn.classList.remove('pressed');
+
           if (action === 'crouch') {
             player.crouching = false;
           }
-        }, {passive: false});
+        };
+
+        btn.addEventListener('touchstart', press, {passive: false});
+        btn.addEventListener('touchend', release, {passive: false});
+        btn.addEventListener('touchcancel', release, {passive: false});
       });
-      
+
       // タッチイベントの伝播を防ぐ
       document.addEventListener('touchstart', (e) => {
         if (audioContext && audioContext.state === 'suspended') {
@@ -420,7 +673,7 @@
     function handleKeyDown(e) {
       keys[e.key] = true;
       
-      if (e.code === "Space" && player.onGround && started) {
+      if ((e.code === "Space" || e.key === "ArrowUp") && player.onGround && started) {
         e.preventDefault();
         player.vy = -13;
         player.onGround = false;
