@@ -1,998 +1,1489 @@
-/* 基本設定 */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    /* iOS タップズーム完全防止 */
-    touch-action: manipulation;
-    -webkit-touch-callout: none;
-    -webkit-tap-highlight-color: transparent;
-}
-
-body {
-    font-family: 'Courier New', monospace;
-    background: #0a0a0a;
-    color: #ffffff;
-    overflow: hidden;
-    user-select: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    /* iOS Safari 専用設定 */
-    -webkit-text-size-adjust: none;
-    -webkit-overflow-scrolling: touch;
-}
-
-/* 画面の基本設定 */
-.screen {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    display: none;
-    background: #1a1a1a;
-}
-
-.screen.active {
-    display: flex;
-    flex-direction: column;
-    animation: fadeIn 0.5s ease;
-}
-
-/* タイトル画面 */
-#titleScreen {
-    justify-content: center;
-    align-items: center;
-    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-}
-
-.title-container {
-    text-align: center;
-    background: rgba(0, 0, 0, 0.8);
-    padding: 40px;
-    border-radius: 20px;
-    border: 3px solid #ffffff;
-    box-shadow: 0 0 30px rgba(52, 152, 219, 0.5);
-    max-width: 90vw;
-}
-
-.title-container h1 {
-    font-size: 3rem;
-    margin-bottom: 10px;
-    color: #3498db;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.title-container h2 {
-    font-size: 1.5rem;
-    margin-bottom: 30px;
-    color: #e74c3c;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.start-button {
-    background: #27ae60;
-    color: white;
-    padding: 15px 30px;
-    font-size: 1.5rem;
-    border: 3px solid #ffffff;
-    border-radius: 10px;
-    cursor: pointer;
-    margin: 20px auto;
-    width: fit-content;
-    transition: all 0.3s ease;
-    font-weight: bold;
-    animation: pulse 2s infinite;
-}
-
-.start-button:hover {
-    background: #2ecc71;
-    transform: scale(1.1);
-    box-shadow: 0 0 20px rgba(46, 204, 113, 0.6);
-}
-
-.instructions {
-    margin-top: 30px;
-    color: #bdc3c7;
-    text-align: left;
-}
-
-.instructions p {
-    margin: 8px 0;
-    font-size: 1rem;
-}
-
-/* ゲーム画面 */
-#gameScreen {
-    flex-direction: column;
-}
-
-/* ヘッダー */
-#header {
-    background: #2c3e50;
-    padding: 10px;
-    border-bottom: 2px solid #34495e;
-    flex-shrink: 0;
-}
-
-.status-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    max-width: 800px;
-    margin: 0 auto;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.player-info {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    flex-wrap: wrap;
-}
-
-.player-info > span {
-    font-weight: bold;
-    color: #3498db;
-    font-size: 1.1rem;
-}
-
-.hp-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.hp-bar {
-    width: 100px;
-    height: 15px;
-    background: #7f8c8d;
-    border: 2px solid #ffffff;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.hp-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #27ae60 0%, #2ecc71 100%);
-    transition: width 0.5s ease;
-    width: 100%;
-}
-
-.floor-info {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    flex-wrap: wrap;
-}
-
-.floor-info span {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #e74c3c;
-    background: rgba(231, 76, 60, 0.2);
-    padding: 5px 15px;
-    border-radius: 15px;
-    border: 2px solid #e74c3c;
-}
-
-.money-display {
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: #f39c12;
-    background: rgba(243, 156, 18, 0.2);
-    padding: 5px 15px;
-    border-radius: 15px;
-    border: 2px solid #f39c12;
-}
-
-.sound-toggle {
-    font-size: 0.9rem;
-    color: #bdc3c7;
-    background: rgba(189, 195, 199, 0.2);
-    padding: 5px 10px;
-    border-radius: 10px;
-    border: 1px solid #bdc3c7;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.sound-toggle:hover {
-    background: rgba(189, 195, 199, 0.4);
-    transform: scale(1.05);
-}
-
-/* ゲームエリア */
-#gameArea {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-    background: #34495e;
-    min-height: 0;
-}
-
-#mapContainer {
-    width: 100%;
-    max-width: 600px;
-    aspect-ratio: 4/3;
-    background: #2c3e50;
-    border: 3px solid #ffffff;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-#gameMap {
-    width: 100%;
-    height: 100%;
-    background: #1a1a1a;
-}
-
-/* コントローラー */
-#controller {
-    background: #2c3e50;
-    padding: 20px;
-    border-top: 2px solid #34495e;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    max-width: 800px;
-    margin: 0 auto;
-    width: 100%;
-    position: relative;
-    flex-shrink: 0;
-}
-
-.dpad {
-    position: relative;
-    width: 120px;
-    height: 120px;
-}
-
-.dpad-btn {
-    position: absolute;
-    width: 40px;
-    height: 40px;
-    background: #34495e;
-    border: 2px solid #ffffff;
-    color: #ffffff;
-    font-size: 1.2rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border-radius: 5px;
-}
-
-.dpad-btn:active {
-    background: #3498db;
-    transform: scale(0.95);
-}
-
-.dpad-btn.up {
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.dpad-btn.down {
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.dpad-btn.left {
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-.dpad-btn.right {
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-.action-buttons {
-    display: flex;
-    gap: 20px;
-    position: relative;
-}
-
-.action-btn {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    border: 3px solid #ffffff;
-    font-size: 1.5rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.a-btn {
-    background: #27ae60;
-    color: #ffffff;
-}
-
-.a-btn:active {
-    background: #2ecc71;
-    transform: scale(0.95);
-}
-
-.b-btn {
-    background: #e74c3c;
-    color: #ffffff;
-    margin-right: 30px;
-}
-
-.b-btn:active {
-    background: #c0392b;
-    transform: scale(0.95);
-}
-
-.menu-buttons {
-    position: absolute;
-    bottom: -60px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 20px;
-}
-
-.menu-btn {
-    background: #7f8c8d;
-    color: #ffffff;
-    border: 2px solid #ffffff;
-    padding: 8px 15px;
-    border-radius: 15px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 80px;
-}
-
-.menu-btn:active {
-    background: #95a5a6;
-    transform: scale(0.95);
-}
-
-/* オーバーレイ */
-.overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.9);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    padding: 20px;
-}
-
-.overlay.active {
-    display: flex;
-}
-
-/* 戦闘画面 */
-.battle-container {
-    background: #2c3e50;
-    border: 3px solid #ffffff;
-    border-radius: 15px;
-    padding: 30px;
-    max-width: 90vw;
-    width: 600px;
-    text-align: center;
-    animation: slideUp 0.5s ease;
-}
-
-.battle-header h3 {
-    color: #e74c3c;
-    font-size: 2rem;
-    margin-bottom: 20px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.battle-area {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    margin: 30px 0;
-    gap: 20px;
-}
-
-.character-sprite {
-    width: 80px;
-    height: 80px;
-    border-radius: 10px;
-    border: 3px solid #ffffff;
-    margin-bottom: 10px;
-}
-
-.player-sprite {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-}
-
-.enemy-sprite {
-    background: linear-gradient(135deg, #e74c3c, #c0392b);
-}
-
-.character-info {
-    text-align: center;
-}
-
-.character-info .name {
-    font-weight: bold;
-    margin-bottom: 8px;
-    font-size: 1.1rem;
-}
-
-.vs-text {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #f39c12;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.battle-log {
-    background: #34495e;
-    border: 2px solid #7f8c8d;
-    border-radius: 10px;
-    padding: 15px;
-    height: 100px;
-    overflow-y: auto;
-    margin: 20px 0;
-    text-align: left;
-}
-
-.battle-log p {
-    margin: 5px 0;
-    line-height: 1.4;
-}
-
-.battle-controls {
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    margin-top: 20px;
-}
-
-.battle-btn {
-    padding: 12px 25px;
-    border: 2px solid #ffffff;
-    border-radius: 10px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.attack-btn {
-    background: #27ae60;
-    color: #ffffff;
-}
-
-.attack-btn:hover {
-    background: #2ecc71;
-    transform: scale(1.05);
-}
-
-.special-btn {
-    background: #8e44ad;
-    color: #ffffff;
-}
-
-.special-btn:hover {
-    background: #9b59b6;
-    transform: scale(1.05);
-}
-
-/* ショップ画面 */
-.shop-container {
-    background: #2c3e50;
-    border: 3px solid #ffffff;
-    border-radius: 15px;
-    padding: 30px;
-    max-width: 90vw;
-    width: 600px;
-    text-align: center;
-    animation: slideUp 0.5s ease;
-}
-
-.shop-header h3 {
-    color: #f39c12;
-    font-size: 2rem;
-    margin-bottom: 20px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.shop-items {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin: 20px 0;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.shop-item {
-    background: #34495e;
-    border: 2px solid #7f8c8d;
-    border-radius: 10px;
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.item-info {
-    text-align: left;
-    flex: 1;
-}
-
-.item-name {
-    font-weight: bold;
-    font-size: 1.1rem;
-    color: #3498db;
-}
-
-.item-description {
-    font-size: 0.9rem;
-    color: #bdc3c7;
-    margin-top: 5px;
-}
-
-.item-price {
-    font-weight: bold;
-    color: #f39c12;
-    margin-right: 15px;
-}
-
-.buy-btn {
-    background: #27ae60;
-    color: #ffffff;
-    border: 2px solid #ffffff;
-    padding: 8px 15px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    min-width: 80px;
-}
-
-.buy-btn:hover {
-    background: #2ecc71;
-    transform: scale(1.05);
-}
-
-.buy-btn:disabled {
-    background: #7f8c8d;
-    cursor: not-allowed;
-    transform: none;
-}
-
-.close-shop-btn {
-    background: #e74c3c;
-    color: #ffffff;
-    border: 2px solid #ffffff;
-    padding: 12px 25px;
-    border-radius: 10px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 20px;
-}
-
-.close-shop-btn:hover {
-    background: #c0392b;
-    transform: scale(1.05);
-}
-
-/* ヘルプ画面 */
-.help-container {
-    background: #2c3e50;
-    border: 3px solid #ffffff;
-    border-radius: 15px;
-    padding: 30px;
-    max-width: 90vw;
-    width: 500px;
-    text-align: center;
-    animation: slideUp 0.5s ease;
-}
-
-.help-header h3 {
-    color: #3498db;
-    font-size: 2rem;
-    margin-bottom: 20px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.help-content {
-    text-align: left;
-    margin: 20px 0;
-}
-
-.help-section {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #34495e;
-    border-radius: 10px;
-}
-
-.help-section h4 {
-    color: #f39c12;
-    font-size: 1.2rem;
-    margin-bottom: 10px;
-}
-
-.help-section p {
-    color: #bdc3c7;
-    margin: 5px 0;
-    line-height: 1.4;
-}
-
-.close-help-btn {
-    background: #3498db;
-    color: #ffffff;
-    border: 2px solid #ffffff;
-    padding: 12px 25px;
-    border-radius: 10px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 20px;
-}
-
-.close-help-btn:hover {
-    background: #2980b9;
-    transform: scale(1.05);
-}
-
-/* エレベーター演出 */
-.elevator-container {
-    text-align: center;
-    color: #ffffff;
-}
-
-.elevator-animation {
-    width: 200px;
-    height: 150px;
-    position: relative;
-    margin: 0 auto 30px;
-    background: #34495e;
-    border: 3px solid #ffffff;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-.elevator-door {
-    position: absolute;
-    top: 0;
-    width: 50%;
-    height: 100%;
-    background: #7f8c8d;
-    border: 1px solid #95a5a6;
-    transition: transform 2s ease;
-}
-
-.elevator-door.left {
-    left: 0;
-}
-
-.elevator-door.right {
-    right: 0;
-}
-
-.elevator-door.open.left {
-    transform: translateX(-100%);
-}
-
-.elevator-door.open.right {
-    transform: translateX(100%);
-}
-
-.elevator-text {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: #f39c12;
-}
-
-/* ゲームオーバー・クリア画面 */
-.game-over-container,
-.game-clear-container {
-    text-align: center;
-    background: rgba(0, 0, 0, 0.9);
-    padding: 50px;
-    border-radius: 20px;
-    border: 3px solid #ffffff;
-    max-width: 90vw;
-}
-
-.game-over-container h1 {
-    color: #e74c3c;
-    font-size: 3rem;
-    margin-bottom: 20px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.game-clear-container h1 {
-    color: #27ae60;
-    font-size: 3rem;
-    margin-bottom: 20px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-.game-over-container p,
-.game-clear-container p {
-    font-size: 1.2rem;
-    margin: 15px 0;
-    color: #bdc3c7;
-}
-
-.game-over-container button,
-.game-clear-container button {
-    background: #3498db;
-    color: #ffffff;
-    border: 2px solid #ffffff;
-    padding: 15px 30px;
-    font-size: 1.2rem;
-    border-radius: 10px;
-    cursor: pointer;
-    margin: 20px auto;
-    width: fit-content;
-    transition: all 0.3s ease;
-    font-weight: bold;
-}
-
-.game-over-container button:hover,
-.game-clear-container button:hover {
-    background: #2980b9;
-    transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(52, 152, 219, 0.6);
-}
-
-/* レスポンシブ対応 */
-@media (max-width: 768px) {
-    .title-container {
-        padding: 30px 20px;
-        margin: 20px;
-    }
-    
-    .title-container h1 {
-        font-size: 2.5rem;
-    }
-    
-    .title-container h2 {
-        font-size: 1.2rem;
-    }
-    
-    .status-bar {
-        flex-direction: column;
-        gap: 10px;
-        text-align: center;
-    }
-    
-    .player-info {
-        flex-direction: column;
-        gap: 8px;
-    }
-    
-    #controller {
-        padding: 15px 15px 80px 15px;
-        flex-wrap: wrap;
-        gap: 20px;
-        justify-content: space-between;
-    }
-    
-    .dpad {
-        width: 100px;
-        height: 100px;
-    }
-    
-    .dpad-btn {
-        width: 35px;
-        height: 35px;
-        font-size: 1rem;
-    }
-    
-    .action-btn {
-        width: 50px;
-        height: 50px;
-        font-size: 1.2rem;
-    }
-    
-    .menu-buttons {
-        bottom: -50px;
-        gap: 15px;
-    }
-    
-    .menu-btn {
-        padding: 6px 12px;
-        font-size: 0.8rem;
-        min-width: 70px;
-    }
-    
-    .battle-container,
-    .shop-container,
-    .help-container {
-        padding: 20px;
-        margin: 20px;
-    }
-    
-    .battle-area {
-        flex-direction: column;
-        gap: 15px;
-    }
-    
-    .battle-controls {
-        flex-direction: column;
-        gap: 15px;
-    }
-    
-    .vs-text {
-        font-size: 1.5rem;
-    }
-    
-    .shop-item {
-        flex-direction: column;
-        gap: 10px;
-        text-align: center;
-    }
-}
-
-@media (max-width: 480px) {
-    .title-container h1 {
-        font-size: 2rem;
-    }
-    
-    .start-button {
-        font-size: 1.2rem;
-        padding: 12px 25px;
-    }
-    
-    #gameArea {
-        padding: 10px;
-    }
-    
-    .hp-bar {
-        width: 80px;
-        height: 12px;
-    }
-    
-    #controller {
-        padding: 10px 10px 70px 10px;
-        gap: 15px;
-    }
-    
-    .dpad {
-        width: 90px;
-        height: 90px;
-    }
-    
-    .dpad-btn {
-        width: 30px;
-        height: 30px;
-        font-size: 0.9rem;
-    }
-    
-    .action-btn {
-        width: 45px;
-        height: 45px;
-        font-size: 1.1rem;
-    }
-    
-    .menu-buttons {
-        bottom: -45px;
-        gap: 10px;
-    }
-    
-    .menu-btn {
-        padding: 5px 10px;
-        font-size: 0.7rem;
-        min-width: 60px;
-    }
-    
-    .battle-header h3,
-    .shop-header h3,
-    .help-header h3 {
-        font-size: 1.5rem;
-    }
-    
-    .character-sprite {
-        width: 60px;
-        height: 60px;
-    }
-    
-    .battle-btn,
-    .buy-btn,
-    .close-shop-btn,
-    .close-help-btn {
-        padding: 10px 20px;
-        font-size: 1rem;
-    }
-    
-    .game-over-container,
-    .game-clear-container {
-        padding: 30px 20px;
-        margin: 20px;
-    }
-    
-    .game-over-container h1,
-    .game-clear-container h1 {
-        font-size: 2rem;
-    }
-}
-
-/* アニメーション */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes slideUp {
-    from { transform: translateY(50px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
-/* アクセシビリティ改善 */
-@media (prefers-reduced-motion: reduce) {
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>恐竜から逃げろ！</title>
+  <style>
     * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-user-select: none;
+      user-select: none;
     }
-}
-
-/* ダークモード対応 */
-@media (prefers-color-scheme: dark) {
+    
     body {
-        background: #0a0a0a;
+      background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+      font-family: 'Arial', sans-serif;
+      color: white;
+      text-align: center;
+      overflow: hidden;
+      height: 100vh;
+      height: -webkit-fill-available;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
     }
-}
+    
+    #gameContainer {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      height: -webkit-fill-available;
+      border-radius: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    canvas {
+      display: block;
+      background: linear-gradient(to bottom, #87ceeb 0%, #98d8e8 50%, #7fbf7f 100%);
+      border-radius: 0;
+      touch-action: none;
+      flex: 1;
+      width: 100%;
+      max-height: calc(100vh - 120px);
+      max-height: calc(-webkit-fill-available - 120px);
+    }
+    
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(26,26,46,0.95));
+      color: white;
+      font-size: clamp(16px, 4vw, 24px);
+      z-index: 9999;
+      backdrop-filter: blur(10px);
+    }
+    
+    #overlay h1 {
+      font-size: clamp(24px, 6vw, 48px);
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 10px rgba(255,215,0,0.8);
+      animation: glow 2s ease-in-out infinite alternate;
+    }
+    
+    @keyframes glow {
+      from { text-shadow: 2px 2px 10px rgba(255,215,0,0.8); }
+      to { text-shadow: 2px 2px 20px rgba(255,100,100,0.8); }
+    }
+    
+    #overlay p {
+      margin: 10px 0;
+      font-size: clamp(14px, 3vw, 18px);
+    }
+    
+    .button-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    
+    button {
+      padding: 12px 20px;
+      font-size: clamp(16px, 3.5vw, 20px);
+      border: none;
+      border-radius: 25px;
+      background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(255,107,107,0.3);
+      font-weight: bold;
+      min-width: 120px;
+    }
+    
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(255,107,107,0.5);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    #controls {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: none;
+      z-index: 1000;
+      padding: env(safe-area-inset-bottom, 10px) 10px 10px 10px;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(10px);
+    }
 
-/* フォーカス対応 */
-button:focus,
-.dpad-btn:focus,
-.action-btn:focus {
-    outline: 2px solid #3498db;
-    outline-offset: 2px;
-}
+    .famicom-controller {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: clamp(8px, 2vw, 16px);
+      padding: clamp(8px, 2vw, 14px);
+      border-radius: 16px;
+      background: linear-gradient(135deg, #8b1a1a, #5c0909);
+      border: 2px solid #2a0303;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+      color: #f7e5a6;
+      overflow: hidden;
+      max-width: 100vw;
+      margin: 0 auto;
+    }
 
-/* iOS Safari 専用追加設定 */
-input, textarea, select {
-    -webkit-appearance: none;
-    -webkit-border-radius: 0;
-    border-radius: 0;
-}
+    .famicom-controller::before {
+      content: "";
+      position: absolute;
+      inset: clamp(6px, 1.5vw, 10px);
+      border-radius: 12px;
+      background: linear-gradient(135deg, #d8b76c, #a5792a);
+      opacity: 0.95;
+      pointer-events: none;
+    }
 
-/* すべてのボタン要素にiOS対応を適用 */
-button,
-.start-button,
-.dpad-btn,
-.action-btn,
-.menu-btn,
-.battle-btn,
-.buy-btn,
-.close-shop-btn,
-.close-help-btn,
-.sound-toggle {
-    /* iOS完全タップズーム防止 */
-    touch-action: manipulation;
-    -webkit-touch-callout: none;
-    -webkit-tap-highlight-color: transparent;
-    -webkit-text-size-adjust: none;
-    /* iOS ダブルタップ防止 */
-    -webkit-user-select: none;
-    user-select: none;
-}
+    .famicom-controller > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .control-btn {
+      border: none;
+      outline: none;
+      background: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #f7e5a6;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+      transition: transform 0.1s ease;
+    }
+
+    .control-btn:active,
+    .control-btn.pressed {
+      transform: translateY(1px);
+    }
+
+    .dpad {
+      position: relative;
+      width: clamp(60px, 16vw, 90px);
+      aspect-ratio: 1;
+      padding: clamp(6px, 1.5vw, 10px);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: clamp(2px, 0.5vw, 4px);
+      background: #1a1a1a;
+      border-radius: 12px;
+      box-shadow: inset 0 6px 10px rgba(0, 0, 0, 0.7), inset 0 -4px 8px rgba(255, 255, 255, 0.08);
+    }
+
+    .dpad::before,
+    .dpad::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(180deg, #3f3f3f, #090909);
+      border-radius: 8px;
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.1), inset 0 -3px 4px rgba(0, 0, 0, 0.7);
+    }
+
+    .dpad::before {
+      width: 30%;
+      height: 90%;
+    }
+
+    .dpad::after {
+      width: 90%;
+      height: 30%;
+    }
+
+    .dpad-btn {
+      position: relative;
+      z-index: 2;
+      border-radius: 8px;
+    }
+
+    .dpad-btn:active,
+    .dpad-btn.pressed {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .dpad-btn.up { grid-area: 1 / 2; }
+    .dpad-btn.left { grid-area: 2 / 1; }
+    .dpad-btn.right { grid-area: 2 / 3; }
+    .dpad-btn.down { grid-area: 3 / 2; }
+
+    .dpad-btn::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 0;
+      height: 0;
+      border-style: solid;
+    }
+
+    .dpad-btn.up::after {
+      border-width: clamp(6px, 1.5vw, 8px) clamp(5px, 1.2vw, 7px) 0 clamp(5px, 1.2vw, 7px);
+      border-color: #d7d7d7 transparent transparent transparent;
+    }
+
+    .dpad-btn.down::after {
+      border-width: 0 clamp(5px, 1.2vw, 7px) clamp(6px, 1.5vw, 8px) clamp(5px, 1.2vw, 7px);
+      border-color: transparent transparent #d7d7d7 transparent;
+    }
+
+    .dpad-btn.left::after {
+      border-width: clamp(5px, 1.2vw, 7px) 0 clamp(5px, 1.2vw, 7px) clamp(6px, 1.5vw, 8px);
+      border-color: transparent transparent transparent #d7d7d7;
+    }
+
+    .dpad-btn.right::after {
+      border-width: clamp(5px, 1.2vw, 7px) clamp(6px, 1.5vw, 8px) clamp(5px, 1.2vw, 7px) 0;
+      border-color: transparent #d7d7d7 transparent transparent;
+    }
+
+    .dpad-center {
+      grid-area: 2 / 2;
+      position: relative;
+      pointer-events: none;
+    }
+
+    .dpad-center::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 35%;
+      height: 35%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #2c2c2c, #050505);
+      box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.15), inset 0 -2px 3px rgba(0, 0, 0, 0.8);
+    }
+
+    .dpad-corner {
+      pointer-events: none;
+    }
+
+    .center-buttons {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(4px, 1vw, 8px);
+      text-transform: uppercase;
+      letter-spacing: 0;
+      font-weight: bold;
+      color: #4a1b1b;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .controller-logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(1px, 0.3vw, 2px);
+      font-size: clamp(6px, 1.5vw, 10px);
+      letter-spacing: clamp(1px, 0.4vw, 2px);
+      line-height: 1;
+    }
+
+    .controller-logo span {
+      display: block;
+    }
+
+    .start-select {
+      display: flex;
+      gap: clamp(6px, 1.5vw, 10px);
+    }
+
+    .famicom-button {
+      padding: clamp(3px, 0.8vw, 5px) clamp(6px, 1.5vw, 10px);
+      border-radius: 12px;
+      background: linear-gradient(180deg, #3a3a3a, #0b0b0b);
+      border: 1px solid #000;
+      color: #f7e5a6;
+      font-size: clamp(6px, 1.2vw, 8px);
+      letter-spacing: clamp(0.5px, 0.3vw, 1px);
+      box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.2), inset 0 -1px 3px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
+    }
+
+    .action-buttons {
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, 2vw, 14px);
+    }
+
+    .action-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(3px, 0.8vw, 6px);
+    }
+
+    .action-btn {
+      width: clamp(35px, 9vw, 50px);
+      height: clamp(35px, 9vw, 50px);
+      border-radius: 50%;
+      border: 2px solid #7a0b0b;
+      background: radial-gradient(circle at 30% 30%, #ffb3b3, #b31217 65%, #6b0606 100%);
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 2px 3px rgba(255, 255, 255, 0.2), inset 0 -4px 6px rgba(0, 0, 0, 0.6);
+      color: transparent;
+    }
+
+    .action-btn:active,
+    .action-btn.pressed {
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+
+    .action-label {
+      font-size: clamp(8px, 2vw, 12px);
+      letter-spacing: 2px;
+      font-weight: bold;
+      color: #4a1b1b;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+    
+    #gameInfo {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      z-index: 100;
+      background: rgba(0,0,0,0.7);
+      padding: clamp(5px, 1.5vw, 10px);
+      border-radius: 8px;
+      backdrop-filter: blur(5px);
+    }
+    
+    #gameInfo div {
+      margin: 1px 0;
+      font-size: clamp(10px, 2.5vw, 14px);
+      font-weight: bold;
+    }
+    
+    .progress-bar {
+      width: clamp(100px, 25vw, 150px);
+      height: 6px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 3px 0;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff6b6b, #ffd93d);
+      transition: width 0.3s ease;
+    }
+    
+    /* iOS対応 */
+    @media (max-width: 768px) {
+      body {
+        padding: 0;
+        height: 100vh;
+        height: -webkit-fill-available;
+      }
+
+      canvas {
+        max-height: calc(100vh - 100px);
+        max-height: calc(-webkit-fill-available - 100px);
+      }
+
+      #controls {
+        display: block;
+      }
+
+      #overlay {
+        padding: 20px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .famicom-controller {
+        flex-direction: row;
+        justify-content: space-between;
+        padding: clamp(6px, 1.5vw, 10px);
+        gap: clamp(6px, 1.5vw, 12px);
+      }
+
+      .center-buttons {
+        order: 2;
+        flex: 0 0 auto;
+      }
+
+      .dpad {
+        order: 1;
+        width: clamp(50px, 14vw, 70px);
+      }
+
+      .action-buttons {
+        order: 3;
+        gap: clamp(6px, 1.5vw, 10px);
+      }
+
+      .action-btn {
+        width: clamp(30px, 8vw, 40px);
+        height: clamp(30px, 8vw, 40px);
+      }
+    }
+
+    @media (max-width: 480px) {
+      #controls {
+        padding: env(safe-area-inset-bottom, 5px) 5px 5px 5px;
+      }
+
+      .famicom-controller {
+        padding: clamp(4px, 1vw, 8px);
+        gap: clamp(4px, 1vw, 8px);
+        border-radius: 12px;
+      }
+
+      canvas {
+        max-height: calc(100vh - 85px);
+        max-height: calc(-webkit-fill-available - 85px);
+      }
+    }
+    
+    @media (orientation: landscape) and (max-height: 500px) {
+      #overlay h1 {
+        font-size: clamp(20px, 4vw, 32px);
+        margin-bottom: 10px;
+      }
+      
+      #overlay p {
+        font-size: clamp(12px, 2.5vw, 14px);
+        margin: 5px 0;
+      }
+      
+      button {
+        padding: 8px 16px;
+        font-size: clamp(14px, 3vw, 16px);
+      }
+
+      canvas {
+        max-height: calc(100vh - 75px);
+        max-height: calc(-webkit-fill-available - 75px);
+      }
+
+      .famicom-controller {
+        padding: clamp(3px, 0.8vw, 6px);
+        gap: clamp(3px, 0.8vw, 6px);
+      }
+
+      .dpad {
+        width: clamp(45px, 12vw, 60px);
+      }
+
+      .action-btn {
+        width: clamp(25px, 7vw, 35px);
+        height: clamp(25px, 7vw, 35px);
+      }
+    }
+
+    /* iPhone SE など小さい画面用 */
+    @media (max-width: 375px) and (max-height: 667px) {
+      canvas {
+        max-height: calc(100vh - 80px);
+        max-height: calc(-webkit-fill-available - 80px);
+      }
+
+      .famicom-controller {
+        padding: 4px;
+        gap: 4px;
+      }
+
+      .dpad {
+        width: 45px;
+      }
+
+      .action-btn {
+        width: 28px;
+        height: 28px;
+      }
+
+      #gameInfo {
+        top: 3px;
+        left: 3px;
+        padding: 4px;
+      }
+
+      #gameInfo div {
+        font-size: 10px;
+      }
+
+      .progress-bar {
+        width: 80px;
+        height: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <h1>🦖 恐竜から逃げろ！ 🏃‍♀️</h1>
+    <p>📱 画面下のボタンまたはキーボードで操作</p>
+    <p>🏃‍♀️ 移動　🚀 ジャンプ　🤲 しゃがみ</p>
+    <div class="button-container">
+      <button onclick="startGame(1)">🌟 レベル1（やさしい）</button>
+      <button onclick="startGame(2)">⚡ レベル2（ふつう）</button>
+      <button onclick="startGame(3)">🔥 レベル3（むずかしい）</button>
+    </div>
+    <p style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
+      🎯 コインを集めて　🏠 ゴールを目指そう！
+    </p>
+  </div>
+
+  <div id="gameContainer">
+    <canvas id="game"></canvas>
+    <div id="gameInfo">
+      <div>スコア: <span id="score">0</span></div>
+      <div>レベル: <span id="level">1</span></div>
+      <div>進行度:</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div class="famicom-controller">
+      <div class="dpad">
+        <div class="dpad-corner"></div>
+        <button type="button" class="control-btn dpad-btn up" data-action="jump" aria-label="ジャンプ（上ボタン）"></button>
+        <div class="dpad-corner"></div>
+        <button type="button" class="control-btn dpad-btn left" data-action="left" aria-label="左に移動"></button>
+        <div class="dpad-center"></div>
+        <button type="button" class="control-btn dpad-btn right" data-action="right" aria-label="右に移動"></button>
+        <div class="dpad-corner"></div>
+        <button type="button" class="control-btn dpad-btn down" data-action="crouch" aria-label="しゃがむ"></button>
+        <div class="dpad-corner"></div>
+      </div>
+      <div class="center-buttons">
+        <div class="controller-logo">
+          <span>FAMILY</span>
+          <span>COMPUTER</span>
+        </div>
+        <div class="start-select">
+          <div class="famicom-button">SELECT</div>
+          <div class="famicom-button">START</div>
+        </div>
+      </div>
+      <div class="action-buttons">
+        <div class="action-button">
+          <button type="button" class="control-btn action-btn b-btn" data-action="jump" aria-label="ジャンプ（Bボタン）"></button>
+          <span class="action-label">B</span>
+        </div>
+        <div class="action-button">
+          <button type="button" class="control-btn action-btn a-btn" data-action="jump" aria-label="ジャンプ（Aボタン）"></button>
+          <span class="action-label">A</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // キャンバスサイズを動的調整
+    function resizeCanvas() {
+      const canvas = document.getElementById("game");
+      const container = document.getElementById("gameContainer");
+      
+      // iOSのsafe areaを考慮した高さ計算
+      const viewportHeight = window.innerHeight;
+      const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0');
+      const controlsHeight = window.innerWidth <= 768 ? 100 : 0;
+      
+      const availableWidth = window.innerWidth;
+      const availableHeight = viewportHeight - controlsHeight - safeAreaBottom;
+      
+      // アスペクト比を維持しながらサイズ調整
+      const targetRatio = 4/3; // 横:縦 = 4:3
+      let canvasWidth, canvasHeight;
+      
+      if (availableWidth / availableHeight > targetRatio) {
+        // 高さ基準でサイズ決定
+        canvasHeight = Math.min(availableHeight, 600);
+        canvasWidth = canvasHeight * targetRatio;
+      } else {
+        // 幅基準でサイズ決定
+        canvasWidth = Math.min(availableWidth, 800);
+        canvasHeight = canvasWidth / targetRatio;
+      }
+      
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      
+      // ゲーム内定数を更新
+      VIEW_W = canvas.width;
+      VIEW_H = canvas.height;
+      GROUND_Y = VIEW_H - 60;
+      WORLD_W = VIEW_W * 12;
+    }
+
+    // 音声生成関数
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playTone(frequency, duration, type = 'sine', volume = 0.1) {
+      if (!audioContext) return;
+      
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      oscillator.type = type;
+      
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+    }
+
+    function playJumpSound() {
+      playTone(440, 0.1, 'square', 0.1);
+      setTimeout(() => playTone(550, 0.1, 'square', 0.08), 50);
+    }
+
+    function playCoinSound() {
+      playTone(800, 0.1, 'sine', 0.15);
+      setTimeout(() => playTone(1000, 0.1, 'sine', 0.12), 50);
+      setTimeout(() => playTone(1200, 0.1, 'sine', 0.1), 100);
+    }
+
+    function playGameOverSound() {
+      playTone(200, 0.3, 'sawtooth', 0.2);
+      setTimeout(() => playTone(150, 0.3, 'sawtooth', 0.18), 200);
+      setTimeout(() => playTone(100, 0.5, 'sawtooth', 0.15), 400);
+    }
+
+    function playClearSound() {
+      const melody = [523, 659, 784, 1047, 1319];
+      melody.forEach((freq, i) => {
+        setTimeout(() => playTone(freq, 0.2, 'sine', 0.15), i * 100);
+      });
+    }
+
+    function playRoarSound() {
+      playTone(80, 0.5, 'sawtooth', 0.3);
+      setTimeout(() => playTone(60, 0.3, 'sawtooth', 0.25), 200);
+    }
+
+    // ゲーム変数
+    let canvas, ctx, VIEW_W, VIEW_H, WORLD_W, GROUND_Y;
+    const GRAVITY = 0.6;
+    
+    const player = {
+      x: 200, y: 0, size: 45, speed: 5, 
+      emoji: "🏃‍♂️‍➡️", vy: 0, onGround: true, 
+      stunnedUntil: 0, crouching: false, 
+      speedBoostUntil: 0, invulnerableUntil: 0
+    };
+    
+    const dinoBaseSpeed = {1: 2.5, 2: 4, 3: 6};
+    const dino = {x: -200, y: 0, size: 400, speed: 2.5, emoji: "🦖"};
+    const goal = {x: 0, y: 0, size: 80, emoji: "🏠"};
+    
+    let score = 0, level = 1, state = "title", started = false;
+    let camX = 0, roarTimer = 0, dinoEscaping = false;
+    let fireworks = [], particles = [];
+    
+    const keys = {};
+    const touches = {};
+    
+    // ゲームオブジェクト配列
+    let cacti = [], logs = [], rocks = [], trampolines = [];
+    let coins = [], fragilePlatforms = [], windZones = [];
+    let movingPlatforms = [], boosts = [], bombs = [], meteors = [];
+
+    // 初期化
+    function init() {
+      canvas = document.getElementById("game");
+      ctx = canvas.getContext("2d");
+      resizeCanvas();
+      
+      // イベントリスナー
+      window.addEventListener('resize', resizeCanvas);
+      document.addEventListener("keydown", handleKeyDown);
+      document.addEventListener("keyup", handleKeyUp);
+      
+      // タッチ対応
+      setupTouchControls();
+      
+      // 初期オブジェクト生成
+      generateWorldObjects();
+    }
+
+    function setupTouchControls() {
+      const controls = document.querySelectorAll('[data-action]');
+      controls.forEach(btn => {
+        const action = btn.dataset.action;
+        if (!action) return;
+
+        const press = (e) => {
+          e.preventDefault();
+          touches[action] = true;
+          btn.classList.add('pressed');
+
+          if (action === 'jump' && player.onGround && started) {
+            player.vy = -13;
+            player.onGround = false;
+            playJumpSound();
+          } else if (action === 'crouch') {
+            player.crouching = true;
+          }
+        };
+
+        const release = (e) => {
+          if (e) e.preventDefault();
+          touches[action] = false;
+          btn.classList.remove('pressed');
+
+          if (action === 'crouch') {
+            player.crouching = false;
+          }
+        };
+
+        btn.addEventListener('touchstart', press, {passive: false});
+        btn.addEventListener('touchend', release, {passive: false});
+        btn.addEventListener('touchcancel', release, {passive: false});
+      });
+
+      // タッチイベントの伝播を防ぐ
+      document.addEventListener('touchstart', (e) => {
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+      }, {once: true});
+    }
+
+    function handleKeyDown(e) {
+      keys[e.key] = true;
+      
+      if ((e.code === "Space" || e.key === "ArrowUp") && player.onGround && started) {
+        e.preventDefault();
+        player.vy = -13;
+        player.onGround = false;
+        playJumpSound();
+      }
+      
+      if (e.key === "ArrowDown") {
+        player.crouching = true;
+      }
+      
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    }
+
+    function handleKeyUp(e) {
+      keys[e.key] = false;
+      if (e.key === "ArrowDown") {
+        player.crouching = false;
+      }
+    }
+
+    function generateWorldObjects() {
+      // 障害物生成
+      cacti = [];
+      for(let x = 700; x < WORLD_W - 400; x += 600 + Math.random() * 400) {
+        cacti.push({x, y: GROUND_Y, size: 50, emoji: "🌵"});
+      }
+      
+      logs = [];
+      for(let x = 1200; x < WORLD_W - 600; x += 800 + Math.random() * 400) {
+        logs.push({x, y: GROUND_Y, size: 60, emoji: "🪵"});
+      }
+      
+      rocks = [];
+      for(let x = 1000; x < WORLD_W - 300; x += 700 + Math.random() * 300) {
+        rocks.push({x, y: GROUND_Y, size: 45, emoji: "🪨"});
+      }
+      
+      // アイテム生成
+      trampolines = [];
+      for(let x = 1400; x < WORLD_W - 800; x += 1000 + Math.random() * 500) {
+        trampolines.push({x, y: GROUND_Y, size: 50, emoji: "⬆️"});
+      }
+      
+      coins = [];
+      for(let x = 500; x < WORLD_W - 300; x += 400 + Math.random() * 200) {
+        coins.push({
+          x, 
+          y: GROUND_Y - 60 - Math.random() * 40, 
+          size: 35, 
+          emoji: "🪙", 
+          taken: false,
+          bob: Math.random() * Math.PI * 2
+        });
+      }
+      
+      // 特殊ギミック
+      fragilePlatforms = [
+        {x: 2200, y: GROUND_Y - 100, size: 120, falling: false, vy: 0},
+        {x: 3500, y: GROUND_Y - 120, size: 100, falling: false, vy: 0}
+      ];
+      
+      windZones = [
+        {x: 3000, width: 600, strength: -2}
+      ];
+      
+      movingPlatforms = [
+        {x: 4000, y: GROUND_Y - 120, size: 100, dir: 1},
+        {x: 5500, y: GROUND_Y - 100, size: 120, dir: -1}
+      ];
+      
+      boosts = [];
+      for(let x = 2800; x < WORLD_W - 1000; x += 1500) {
+        boosts.push({x, y: GROUND_Y, size: 40, emoji: "⚡", used: false});
+      }
+      
+      // ゴール位置設定
+      goal.x = WORLD_W - 300;
+      goal.y = GROUND_Y;
+    }
+
+    function startGame(lv) {
+      document.getElementById("overlay").style.display = "none";
+      level = lv;
+      dino.speed = dinoBaseSpeed[lv];
+      state = "game";
+      started = true;
+      
+      // プレイヤーリセット
+      player.x = 200;
+      player.y = GROUND_Y;
+      player.vy = 0;
+      player.stunnedUntil = 0;
+      player.invulnerableUntil = 0;
+      player.speedBoostUntil = 0;
+      player.crouching = false;
+      
+      // 恐竜リセット
+      dino.x = -200;
+      dino.y = GROUND_Y + 100;
+      
+      // その他リセット
+      bombs = [];
+      meteors = [];
+      fireworks = [];
+      particles = [];
+      score = 0;
+      dinoEscaping = false;
+      roarTimer = 0;
+      camX = 0;
+      
+      // オブジェクトリセット
+      coins.forEach(c => c.taken = false);
+      boosts.forEach(b => b.used = false);
+      fragilePlatforms.forEach(p => {
+        p.falling = false;
+        p.y = GROUND_Y - 100;
+        p.vy = 0;
+      });
+      
+      // UI更新
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById("score").textContent = score;
+      document.getElementById("level").textContent = level;
+      
+      const progress = Math.min(100, (player.x / WORLD_W) * 100);
+      document.getElementById("progress").style.width = progress + "%";
+    }
+
+    // パーティクル生成
+    function createParticles(x, y, color, count = 10) {
+      for(let i = 0; i < count; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6,
+          color,
+          life: 30,
+          maxLife: 30
+        });
+      }
+    }
+
+    function updateParticles() {
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.1;
+        p.life--;
+      });
+      particles = particles.filter(p => p.life > 0);
+    }
+
+    function drawParticles() {
+      particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.life / p.maxLife;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - camX, p.y, 3, 3);
+        ctx.restore();
+      });
+    }
+
+    // 花火生成
+    function spawnFirework(x, y) {
+      const colors = ['#ff6b6b', '#ffd93d', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      
+      for(let i = 0; i < 25; i++) {
+        const angle = (Math.PI * 2 * i) / 25;
+        const speed = Math.random() * 4 + 2;
+        fireworks.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          color,
+          life: 40
+        });
+      }
+    }
+
+    function updateFireworks() {
+      fireworks.forEach(f => {
+        f.x += f.vx;
+        f.y += f.vy;
+        f.vy += 0.1;
+        f.life--;
+      });
+      fireworks = fireworks.filter(f => f.life > 0);
+    }
+
+    function drawFireworks() {
+      fireworks.forEach(f => {
+        ctx.save();
+        ctx.globalAlpha = f.life / 40;
+        ctx.fillStyle = f.color;
+        ctx.fillRect(f.x - camX, f.y, 4, 4);
+        ctx.restore();
+      });
+    }
+
+    // 爆弾・隕石生成
+    function spawnBomb() {
+      const x = camX + Math.random() * VIEW_W;
+      bombs.push({x, y: -50, vy: 3, size: 40, emoji: "💣"});
+    }
+
+    function spawnMeteor() {
+      const x = camX + VIEW_W + Math.random() * 200;
+      meteors.push({
+        x, y: -80,
+        vx: -4, vy: 3,
+        size: 45, emoji: "☄️"
+      });
+    }
+
+    // ゲーム更新
+    function update() {
+      if (state === "gameclear") {
+        updateFireworks();
+        updateParticles();
+        if (dinoEscaping) {
+          dino.x -= 8;
+        }
+        if (roarTimer > 0) roarTimer--;
+        return;
+      }
+      
+      if (state !== "game") return;
+
+      const prevX = player.x, prevY = player.y;
+      
+      // プレイヤー移動
+      let move = 0;
+      if (keys["ArrowLeft"] || touches["left"]) move -= 1;
+      if (keys["ArrowRight"] || touches["right"]) move += 1;
+      
+      let speedMul = 1;
+      if (performance.now() < player.stunnedUntil) speedMul = 0.3;
+      if (performance.now() < player.speedBoostUntil) speedMul = 2;
+      
+      player.x += move * player.speed * speedMul;
+      
+      // 重力適用
+      player.vy += GRAVITY;
+      player.y += player.vy;
+      
+      // 地面判定
+      if (player.y >= GROUND_Y) {
+        player.y = GROUND_Y;
+        player.vy = 0;
+        player.onGround = true;
+      } else {
+        player.onGround = false;
+      }
+      
+      // 画面端制限
+      player.x = Math.max(0, Math.min(WORLD_W - player.size, player.x));
+      
+      // 風の影響
+      for (const w of windZones) {
+        if (player.x > w.x && player.x < w.x + w.width) {
+          player.x += w.strength;
+        }
+      }
+      
+      // 爆弾・隕石生成と更新
+      if (Math.random() < 0.008) spawnBomb();
+      if (Math.random() < 0.005) spawnMeteor();
+      
+      // 爆弾更新
+      bombs.forEach(b => {
+        b.vy += 0.15;
+        b.y += b.vy;
+        
+        if (Math.abs(player.x - b.x) < 35 && 
+            Math.abs(player.y - b.y) < 35 && 
+            performance.now() > player.invulnerableUntil) {
+          player.stunnedUntil = performance.now() + 2000;
+          player.invulnerableUntil = performance.now() + 500;
+          createParticles(b.x, b.y, '#ff4444');
+          playTone(150, 0.3, 'sawtooth', 0.2);
+          b.hit = true;
+        }
+        
+        if (b.y > GROUND_Y) b.hit = true;
+      });
+      bombs = bombs.filter(b => !b.hit);
+      
+      // 隕石更新
+      meteors.forEach(m => {
+        m.x += m.vx;
+        m.y += m.vy;
+        
+        if (Math.abs(player.x - m.x) < 35 && 
+            Math.abs(player.y - m.y) < 35 && 
+            performance.now() > player.invulnerableUntil) {
+          player.stunnedUntil = performance.now() + 1500;
+          player.invulnerableUntil = performance.now() + 500;
+          createParticles(m.x, m.y, '#ff8844');
+          playTone(120, 0.4, 'sawtooth', 0.15);
+          m.hit = true;
+        }
+        
+        if (m.y > GROUND_Y || m.x < camX - 100) m.hit = true;
+      });
+      meteors = meteors.filter(m => !m.hit);
+      
+      // コイン更新（浮遊効果）
+      coins.forEach(c => {
+        c.bob += 0.1;
+        c.y = GROUND_Y - 60 + Math.sin(c.bob) * 10;
+        
+        if (!c.taken && Math.abs(player.x - c.x) < 30 && 
+            Math.abs(player.y - c.y) < 35) {
+          c.taken = true;
+          score++;
+          createParticles(c.x, c.y, '#ffd700');
+          playCoinSound();
+        }
+      });
+      
+      // 壊れる足場
+      fragilePlatforms.forEach(p => {
+        if (!p.falling && Math.abs(player.x - p.x) < p.size/2 && 
+            Math.abs(player.y - p.y) < 45) {
+          p.falling = true;
+          playTone(200, 0.2, 'square', 0.1);
+        }
+        
+        if (p.falling) {
+          p.vy += 0.4;
+          p.y += p.vy;
+        }
+      });
+      
+      // 動く足場
+      movingPlatforms.forEach(mp => {
+        mp.y += mp.dir * 1.5;
+        if (mp.y < GROUND_Y - 180 || mp.y > GROUND_Y - 60) {
+          mp.dir *= -1;
+        }
+        
+        if (Math.abs(player.x - mp.x) < mp.size/2 && 
+            Math.abs(player.y - mp.y) < 45) {
+          player.y = mp.y - 40;
+          player.vy = 0;
+          player.onGround = true;
+        }
+      });
+      
+      // ブースト
+      boosts.forEach(b => {
+        if (!b.used && Math.abs(player.x - b.x) < 40 && 
+            player.y >= GROUND_Y - 10) {
+          b.used = true;
+          player.speedBoostUntil = performance.now() + 4000;
+          createParticles(b.x, b.y, '#ffff00');
+          playTone(600, 0.2, 'sine', 0.15);
+        }
+      });
+      
+      // 障害物衝突判定
+      function checkCollision(obj, size = 35) {
+        if (Math.abs(player.x - obj.x) < size && player.y >= GROUND_Y - 10) {
+          player.x = prevX;
+          player.y = prevY;
+          return true;
+        }
+        return false;
+      }
+      
+      cacti.some(c => checkCollision(c));
+      logs.some(l => checkCollision(l, 45));
+      rocks.some(r => checkCollision(r, 40));
+      
+      // トランポリン
+      trampolines.forEach(t => {
+        if (Math.abs(player.x - t.x) < 40 && player.y >= GROUND_Y - 10) {
+          player.vy = -18;
+          player.onGround = false;
+          createParticles(t.x, t.y, '#00ff00');
+          playTone(800, 0.3, 'sine', 0.2);
+        }
+      });
+      
+      // 恐竜追跡
+      if (dino.x < player.x - 120) {
+        dino.x += dino.speed;
+      }
+      
+      // 恐竜接触判定
+      if (dino.x + dino.size/2 >= player.x - player.size/2 && 
+          performance.now() > player.invulnerableUntil) {
+        state = "gameover";
+        playGameOverSound();
+        setTimeout(() => {
+          document.getElementById("overlay").style.display = "flex";
+          document.getElementById("overlay").innerHTML = `
+            <h1>🦖 GAME OVER 🦖</h1>
+            <p>恐竜に捕まってしまいました...</p>
+            <p>スコア: ${score}</p>
+            <div class="button-container">
+              <button onclick="startGame(${level})">🔄 もう一度</button>
+              <button onclick="location.reload()">🏠 タイトルに戻る</button>
+            </div>
+          `;
+        }, 1000);
+        return;
+      }
+      
+      // ゴール判定
+      if (player.x > goal.x - 50) {
+        state = "gameclear";
+        playClearSound();
+        
+        // 花火演出
+        let fireWorkCount = 0;
+        const fireWorkInterval = setInterval(() => {
+          spawnFirework(
+            goal.x - camX + Math.random() * 200 - 100,
+            goal.y - Math.random() * 150
+          );
+          fireWorkCount++;
+          if (fireWorkCount > 15) {
+            clearInterval(fireWorkInterval);
+          }
+        }, 200);
+        
+        dinoEscaping = true;
+        roarTimer = 120;
+        playRoarSound();
+        
+        setTimeout(() => {
+          document.getElementById("overlay").style.display = "flex";
+          document.getElementById("overlay").innerHTML = `
+            <h1>🎉 GAME CLEAR! 🎉</h1>
+            <p>おめでとう！ゴールに到達しました！</p>
+            <p>スコア: ${score}</p>
+            <p>レベル: ${level}</p>
+            <div class="button-container">
+              ${level < 3 ? `<button onclick="startGame(${level + 1})">🚀 次のレベル</button>` : ''}
+              <button onclick="startGame(${level})">🔄 もう一度</button>
+              <button onclick="location.reload()">🏠 タイトルに戻る</button>
+            </div>
+          `;
+        }, 2000);
+      }
+      
+      // カメラ更新
+      camX = Math.max(0, Math.min(player.x - VIEW_W/2, WORLD_W - VIEW_W));
+      
+      // パーティクル更新
+      updateParticles();
+      
+      // UI更新
+      updateUI();
+    }
+
+    // 描画関数
+    function drawEmoji(emoji, x, y, size, flip = false) {
+      ctx.save();
+      ctx.font = size + "px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      
+      if (flip) {
+        ctx.translate(x + size/2, y);
+        ctx.scale(-1, 1);
+        ctx.fillText(emoji, 0, 0);
+      } else {
+        ctx.fillText(emoji, x + size/2, y);
+      }
+      ctx.restore();
+    }
+
+    function drawBackground() {
+      // 空のグラデーション
+      const gradient = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+      gradient.addColorStop(0, "#87ceeb");
+      gradient.addColorStop(0.7, "#98d8e8");
+      gradient.addColorStop(1, "#7fbf7f");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      
+      // 雲
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      for (let i = 0; i < 5; i++) {
+        const x = (i * 300 - camX * 0.3) % (VIEW_W + 100);
+        const y = 50 + i * 20;
+        ctx.beginPath();
+        ctx.arc(x, y, 20, 0, Math.PI * 2);
+        ctx.arc(x + 25, y, 25, 0, Math.PI * 2);
+        ctx.arc(x + 50, y, 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawGround() {
+      // 地面
+      ctx.fillStyle = "#7fbf7f";
+      ctx.fillRect(0, GROUND_Y, VIEW_W, VIEW_H - GROUND_Y);
+      
+      // 地面の模様
+      ctx.fillStyle = "#6faf6f";
+      for (let x = -camX % 50; x < VIEW_W; x += 50) {
+        ctx.fillRect(x, GROUND_Y + 10, 25, 5);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+      
+      drawBackground();
+      drawGround();
+      
+      ctx.save();
+      ctx.translate(-camX, 0);
+      
+      // 障害物描画
+      cacti.forEach(c => drawEmoji(c.emoji, c.x, c.y, c.size));
+      logs.forEach(l => drawEmoji(l.emoji, l.x, l.y, l.size));
+      rocks.forEach(r => drawEmoji(r.emoji, r.x, r.y, r.size));
+      trampolines.forEach(t => drawEmoji(t.emoji, t.x, t.y, t.size));
+      
+      // アイテム描画
+      coins.forEach(c => {
+        if (!c.taken) {
+          ctx.save();
+          ctx.translate(c.x + c.size/2, c.y + c.size/2);
+          ctx.rotate(performance.now() * 0.005);
+          ctx.translate(-c.size/2, -c.size/2);
+          drawEmoji(c.emoji, 0, c.size, c.size);
+          ctx.restore();
+        }
+      });
+      
+      boosts.forEach(b => {
+        if (!b.used) {
+          ctx.save();
+          ctx.globalAlpha = 0.5 + Math.sin(performance.now() * 0.01) * 0.5;
+          drawEmoji(b.emoji, b.x, b.y, b.size);
+          ctx.restore();
+        }
+      });
+      
+      // プラットフォーム描画
+      fragilePlatforms.forEach(p => {
+        if (!p.falling) {
+          ctx.fillStyle = p.falling ? "#8B4513" : "#D2691E";
+          ctx.fillRect(p.x - p.size/2, p.y - 15, p.size, 15);
+          ctx.fillStyle = "#654321";
+          ctx.fillRect(p.x - p.size/2 + 5, p.y - 10, p.size - 10, 5);
+        }
+      });
+      
+      movingPlatforms.forEach(mp => {
+        ctx.fillStyle = "#808080";
+        ctx.fillRect(mp.x - mp.size/2, mp.y - 15, mp.size, 15);
+        ctx.fillStyle = "#A0A0A0";
+        ctx.fillRect(mp.x - mp.size/2 + 5, mp.y - 10, mp.size - 10, 5);
+      });
+      
+      // 爆弾・隕石描画
+      bombs.forEach(b => drawEmoji(b.emoji, b.x, b.y, b.size));
+      meteors.forEach(m => {
+        ctx.save();
+        ctx.translate(m.x + m.size/2, m.y + m.size/2);
+        ctx.rotate(performance.now() * 0.02);
+        drawEmoji(m.emoji, -m.size/2, m.size/2, m.size);
+        ctx.restore();
+      });
+      
+      // プレイヤー描画（無敵時点滅）
+      if (performance.now() < player.invulnerableUntil) {
+        ctx.globalAlpha = Math.sin(performance.now() * 0.03) * 0.5 + 0.5;
+      }
+      
+      // しゃがみ判定
+      const playerEmoji = player.crouching ? "🤸‍♂️" : 
+                         (performance.now() < player.speedBoostUntil ? "🏃‍♂️‍➡️💨" : "🏃‍♂️‍➡️");
+      const playerSize = player.crouching ? player.size * 0.7 : player.size;
+      
+      drawEmoji(playerEmoji, player.x, player.y, playerSize);
+      ctx.globalAlpha = 1;
+      
+      // 恐竜描画
+      if (!dinoEscaping) {
+        drawEmoji(dino.emoji, dino.x, dino.y, dino.size, true);
+        
+        // 恐竜の怒りエフェクト
+        if (dino.x > player.x - 500) {
+          ctx.fillStyle = "red";
+          ctx.font = "40px sans-serif";
+          ctx.fillText("😡", dino.x + 100, dino.y - 50);
+        }
+      } else {
+        drawEmoji(dino.emoji, dino.x, dino.y, dino.size, false);
+        if (roarTimer > 0) {
+          ctx.fillStyle = "red";
+          ctx.font = clamp(24, VIEW_W * 0.06, 48) + "px sans-serif";
+          ctx.fillText("ガオォォ！", dino.x, dino.y - 100);
+        }
+      }
+      
+      // ゴール描画
+      ctx.save();
+      ctx.globalAlpha = 0.8 + Math.sin(performance.now() * 0.008) * 0.2;
+      drawEmoji(goal.emoji, goal.x, goal.y, goal.size);
+      ctx.restore();
+      
+      // 風のゾーン表示
+      windZones.forEach(w => {
+        ctx.fillStyle = "rgba(173,216,230,0.3)";
+        ctx.fillRect(w.x, GROUND_Y - 100, w.width, 100);
+        
+        // 風の矢印
+        ctx.fillStyle = "rgba(100,149,237,0.8)";
+        ctx.font = "30px sans-serif";
+        for (let x = w.x; x < w.x + w.width; x += 60) {
+          ctx.fillText("←", x, GROUND_Y - 50);
+        }
+      });
+      
+      ctx.restore();
+      
+      // エフェクト描画
+      drawParticles();
+      drawFireworks();
+      
+      // スピードブースト中のエフェクト
+      if (performance.now() < player.speedBoostUntil) {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+        ctx.restore();
+      }
+      
+      // スタン中のエフェクト
+      if (performance.now() < player.stunnedUntil) {
+        ctx.fillStyle = "red";
+        ctx.font = "30px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("😵", player.x - camX, player.y - 30);
+      }
+      
+      // ゲームクリア時のエフェクト
+      if (state === "gameclear") {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = "rgba(255,215,0,0.3)";
+        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+        ctx.restore();
+        
+        ctx.fillStyle = "gold";
+        ctx.font = clamp(24, VIEW_W * 0.06, 48) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("🎉 CLEAR! 🎉", VIEW_W/2, VIEW_H/2);
+      }
+      
+      if (state === "gameover") {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = "rgba(255,0,0,0.3)";
+        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+        ctx.restore();
+        
+        ctx.fillStyle = "red";
+        ctx.font = clamp(24, VIEW_W * 0.06, 48) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("💀 GAME OVER 💀", VIEW_W/2, VIEW_H/2);
+      }
+    }
+
+    // ユーティリティ関数
+    function clamp(min, val, max) {
+      return Math.min(Math.max(min, val), max);
+    }
+
+    // メインループ
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 初期化と開始
+    window.addEventListener('load', () => {
+      init();
+      gameLoop();
+    });
+
+    // ページ離脱時の音声停止
+    window.addEventListener('beforeunload', () => {
+      if (audioContext) {
+        audioContext.close();
+      }
+    });
+  </script>
+</body>
+</html>
